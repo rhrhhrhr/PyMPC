@@ -236,16 +236,16 @@ class Polyhedron(object):
         return res
 
     # 多面体的放缩
-    def __mul__(self, other: float or int) -> 'Polyhedron':
+    def __mul__(self, other: int or float) -> 'Polyhedron':
         if other < 0:
             raise PolyException('A polyhedron can only multiply a positive number!')
 
         return self.__class__(self.__l_mat / other, self.__r_vec)
 
-    def __rmul__(self, other: float or int) -> 'Polyhedron':
+    def __rmul__(self, other: int or float) -> 'Polyhedron':
         return self.__mul__(other)
 
-    def __truediv__(self, other: float or int) -> 'Polyhedron':
+    def __truediv__(self, other: int or float) -> 'Polyhedron':
         return self.__mul__(1 / other)
 
     # 多面体取交集
@@ -333,7 +333,7 @@ class UnitCube(Polyhedron):
         return f'Unit cube: dimension -> {self.n_dim}, side length -> {self.__side_length}.'
 
 
-def support_fun(eta: np.ndarray, p: Polyhedron) -> float:
+def support_fun(eta: np.ndarray, p: Polyhedron) -> int or float:
     if eta.ndim != 1:
         raise PolyException('The parameter \'eta\' in calculating the support function of a polyhedron must be 1D')
     if eta.size != p.n_dim:
