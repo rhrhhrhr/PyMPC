@@ -45,6 +45,8 @@ if __name__ == '__main__':
     # Record the real state and input during every iteration
     x_t_mpc = np.zeros((t_mpc.state_dim, T + 1))
     u_t_mpc = np.zeros((t_mpc.input_dim, T))
+    u_nom_t_mpc = np.zeros((t_mpc.input_dim, T))
+    u_noise_t_mpc = np.zeros((t_mpc.input_dim, T))
     x_t_mpc[:, 0] = x_ini
 
     # Record the predicted trajectory during every iteration
@@ -53,7 +55,9 @@ if __name__ == '__main__':
     for k in range(T):
         w = np.random.uniform(-0.1, 0.1, x_dim)
 
-        u_t_mpc[:, k] = t_mpc(x_t_mpc[:, k])
+        u_t_mpc[:, k] = t_mpc(x_t_mpc[:, k])                                     # 实际输出
+        u_nom_t_mpc[:, k] = t_mpc.input_ini.value                                # 名义输出
+        u_noise_t_mpc[:, k] = -t_mpc.k @ (x_t_mpc[:, k] - t_mpc.state_ini.value)  # 用于抑制噪声的输出
         x_t_mpc[:, k + 1] = A @ x_t_mpc[:, k] + B @ u_t_mpc[:, k] + w
 
         x_t_mpc_pred[k] = t_mpc.state_prediction_series
@@ -106,23 +110,37 @@ if __name__ == '__main__':
             ax1.legend()
 
         plt.pause(1)
+        plt.savefig(rf'..\results\tube_based_mpc\fig_1_{k}.png')
 
         line_3.remove()
 
     plt.show()
 
     # Control input plot
-    fig2, ax2 = plt.subplots(1, 1)
-    ax2.set_title('Inputs of the tube based MPC')
+    fig2, ax2 = plt.subplots(3, 1, figsize=(6.4, 4.8 * 3))
+    fig2.suptitle('Inputs of the tube based MPC')
 
     iterations = np.arange(T)
 
-    ax2.plot(iterations, u_t_mpc[0, :], label='Tube based MPC input sequence')
+    ax2[0].step(iterations, u_t_mpc[0, :], label='Tube based MPC input sequence')
+    ax2[0].step(iterations, np.ones(T) * 1, 'y--', label='Input bounds')
+    ax2[0].step(iterations, np.ones(T) * -1, 'y--')
 
-    ax2.step(iterations, np.ones(T) * 1, 'y--', label='Input bounds')
-    ax2.step(iterations, np.ones(T) * -1, 'y--')
+    ax2[0].legend(loc='upper right')
 
-    ax2.legend(loc='upper right')
+    ax2[1].step(iterations, u_nom_t_mpc[0, :], label='Nominal input sequence')
+    ax2[1].step(iterations, np.ones(T) * 1, 'y--', label='Input bounds')
+    ax2[1].step(iterations, np.ones(T) * -1, 'y--')
+
+    ax2[1].legend(loc='upper right')
+
+    ax2[2].step(iterations, u_noise_t_mpc[0, :], label='Input sequence for noise reduction')
+    ax2[2].step(iterations, np.ones(T) * 1, 'y--', label='Input bounds')
+    ax2[2].step(iterations, np.ones(T) * -1, 'y--')
+
+    ax2[2].legend(loc='upper right')
+
+    plt.savefig(r'..\results\tube_based_mpc\fig_2.png')
 
     # Feasible set of the initial state for MPC
     fig3, ax3 = plt.subplots(1, 1)
