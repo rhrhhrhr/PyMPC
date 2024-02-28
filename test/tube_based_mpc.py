@@ -110,7 +110,6 @@ if __name__ == '__main__':
             ax1.legend()
 
         plt.pause(1)
-        plt.savefig(rf'..\results\tube_based_mpc\fig_1_{k}.png')
 
         line_3.remove()
 
@@ -139,8 +138,6 @@ if __name__ == '__main__':
     ax2[2].step(iterations, np.ones(T) * -1, 'y--')
 
     ax2[2].legend(loc='upper right')
-
-    plt.savefig(r'..\results\tube_based_mpc\fig_2.png')
 
     # Feasible set of the initial state for MPC
     fig3, ax3 = plt.subplots(1, 1)
