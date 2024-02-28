@@ -3,6 +3,7 @@ import numpy as np
 import numpy.linalg as npl
 import scipy.linalg as spl
 import cvxpy as cp
+from typing import Tuple
 from .. import poly
 
 
@@ -30,44 +31,44 @@ class LQR(object):
         self.__p, self.__k = self.cal_lqr()
 
     @property
-    def state_dim(self):
+    def state_dim(self) -> int:
         return self.__state_dim
 
     @property
-    def input_dim(self):
+    def input_dim(self) -> int:
         return self.__input_dim
 
     @property
-    def a(self):
+    def a(self) -> np.ndarray:
         return self.__a
 
     @property
-    def b(self):
+    def b(self) -> np.ndarray:
         return self.__b
 
     @property
-    def q(self):
+    def q(self) -> np.ndarray:
         return self.__q
 
     @property
-    def r(self):
+    def r(self) -> np.ndarray:
         return self.__r
 
     @property
-    def p(self):
+    def p(self) -> np.ndarray:
         return self.__p
 
     @property
-    def k(self):
+    def k(self) -> np.ndarray:
         return self.__k
 
-    def cal_lqr(self):
+    def cal_lqr(self) -> Tuple[np.ndarray, np.ndarray]:
         p = spl.solve_discrete_are(self.__a, self.__b, self.__q, self.__r)
         k = npl.inv(self.__r + self.__b.T @ p @ self.__b) @ self.__b.T @ p @ self.__a
 
         return p, k
 
-    def __call__(self, real_time_state: np.ndarray):
+    def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         if real_time_state.ndim != 1:
             raise MPCException('The state must be a 1D array!')
         if real_time_state.shape[0] != self.__state_dim:
@@ -94,38 +95,38 @@ class MPCBase(LQR):
         self.__solver = solver
 
     @property
-    def pred_horizon(self):
+    def pred_horizon(self) -> int:
         return self.__pred_horizon
 
     @pred_horizon.setter
-    def pred_horizon(self, value: int):
+    def pred_horizon(self, value: int) -> None:
         if value <= 0:
             raise MPCException('The prediction horizon must be a positive integer!')
 
         self.__pred_horizon = value
 
     @property
-    def state_prediction_series(self):
+    def state_prediction_series(self) -> np.ndarray:
         return self.__state_series.value.reshape(self.__pred_horizon + 1, self.state_dim).T
 
     @property
-    def input_prediction_series(self):
+    def input_prediction_series(self) -> np.ndarray:
         return self.__input_series.value.reshape(self.__pred_horizon, self.input_dim).T
 
     @property
-    def input_ini(self):
+    def input_ini(self) -> cp.Variable:
         return self.__input_series[0:self.input_dim]
 
     @property
-    def state_ini(self):
+    def state_ini(self) -> cp.Variable:
         return self.__state_series[0:self.state_dim]
 
     @property
-    def real_time_state(self):
+    def real_time_state(self) -> cp.Parameter:
         return self.__real_time_state
 
     @real_time_state.setter
-    def real_time_state(self, value: np.ndarray):
+    def real_time_state(self, value: np.ndarray) -> None:
         if value.ndim != 1:
             raise MPCException('The input state must be a 1D array!')
         if value.size != self.state_dim:
@@ -134,23 +135,23 @@ class MPCBase(LQR):
         self.__real_time_state.value = value
 
     @property
-    def zero_terminal_set(self):
+    def zero_terminal_set(self) -> bool:
         return self.__zero_terminal_set
 
     @zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool):
+    def zero_terminal_set(self, value: bool) -> None:
         self.__zero_terminal_set = value
 
     @property
-    def problem(self):
+    def problem(self) -> None:
         raise MPCException('Attribute \'problem\' can be only realized in subclass')
 
     @property
-    def solver(self):
+    def solver(self) -> str:
         return self.__solver
 
     @solver.setter
-    def solver(self, value):
+    def solver(self, value) -> None:
         self.__solver = value
 
     def cal_terminal_set(self, state_set: poly.Polyhedron, input_set: poly.Polyhedron) -> poly.Polyhedron:
@@ -177,7 +178,7 @@ class MPCBase(LQR):
         return terminal_set
 
     def construct_problem(self, initial_constraints: cp.constraints.Constraint, state_set: poly.Polyhedron,
-                          input_set: poly.Polyhedron, terminal_set: poly.Polyhedron):
+                          input_set: poly.Polyhedron, terminal_set: poly.Polyhedron) -> cp.Problem:
         cost = 0
         state_k = self.__state_series[0:self.state_dim]
 
@@ -298,46 +299,48 @@ class MPC(MPCBase):
                                                 self.__terminal_set)
 
     @MPCBase.zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool):
-        MPCBase.zero_terminal_set.fset(self, value)
-        self.__problem = self.construct_problem(self.__initial_constraints,
-                                                self.state_set,
-                                                self.input_set,
-                                                self.__terminal_set)
+    def zero_terminal_set(self, value: bool) -> None:
+        if self.zero_terminal_set != value:
+            MPCBase.zero_terminal_set.fset(self, value)
+            self.__terminal_set = self.cal_terminal_set(self.__state_set, self.__input_set)
+            self.__problem = self.construct_problem(self.__initial_constraints,
+                                                    self.state_set,
+                                                    self.input_set,
+                                                    self.__terminal_set)
 
     @MPCBase.problem.getter
-    def problem(self):
+    def problem(self) -> cp.Problem:
         return self.__problem
 
     @property
-    def state_set(self):
+    def state_set(self) -> poly.Polyhedron:
         return self.__state_set
 
     @state_set.setter
-    def state_set(self, value: poly.Polyhedron):
+    def state_set(self, value: poly.Polyhedron) -> None:
         if not self.state_dim == value.n_dim:
             raise MPCException('The dimension of the state set is Wrong!')
         self.__state_set = value
 
     @property
-    def input_set(self):
+    def input_set(self) -> poly.Polyhedron:
         return self.__input_set
 
     @input_set.setter
-    def input_set(self, value: poly.Polyhedron):
+    def input_set(self, value: poly.Polyhedron) -> None:
         if not self.input_dim == value.n_dim:
             raise MPCException('The dimension of the input set is Wrong!')
         self.__input_set = value
 
     @property
-    def terminal_set(self):
+    def terminal_set(self) -> poly.Polyhedron:
         return self.__terminal_set
 
     @property
-    def feasible_set(self):
+    def feasible_set(self) -> poly.Polyhedron:
         return self.cal_feasible_set(self.__state_set, self.__input_set, self.__terminal_set)
 
-    def __call__(self, real_time_state: np.ndarray):
+    def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         if real_time_state.ndim != 1:
             raise MPCException('The input state must be a 1D array!')
         if real_time_state.size != self.state_dim:

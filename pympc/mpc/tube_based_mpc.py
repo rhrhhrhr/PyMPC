@@ -26,56 +26,58 @@ class TubeBasedMPC(MPCBase):
                                                 self.__tightened_input_set,
                                                 self.__terminal_set)
 
-    def __call__(self, real_time_state: np.ndarray):
+    def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         self.real_time_state = real_time_state
         self.problem.solve(solver=self.solver)
 
         return self.input_ini.value - self.k @ (real_time_state - self.state_ini.value)
 
     @MPCBase.zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool):
-        MPCBase.zero_terminal_set.fset(self, value)
-        self.__problem = self.construct_problem(self.__initial_constraints,
-                                                self.__tightened_state_set,
-                                                self.__tightened_input_set,
-                                                self.__terminal_set)
+    def zero_terminal_set(self, value: bool) -> None:
+        if self.zero_terminal_set != value:
+            MPCBase.zero_terminal_set.fset(self, value)
+            self.__terminal_set = self.cal_terminal_set(self.__tightened_state_set, self.__tightened_input_set)
+            self.__problem = self.construct_problem(self.__initial_constraints,
+                                                    self.__tightened_state_set,
+                                                    self.__tightened_input_set,
+                                                    self.__terminal_set)
 
     @property
-    def noise_set(self):
+    def noise_set(self) -> poly.Polyhedron:
         return self.__noise_set
 
     @noise_set.setter
-    def noise_set(self, value: poly.Polyhedron):
+    def noise_set(self, value: poly.Polyhedron) -> None:
         if not (self.state_dim == value.n_dim):
             raise MPCException('The dimension of the noise set do not match the state dimension!')
 
         self.__noise_set = value
 
     @property
-    def disturbance_invariant_set(self):
+    def disturbance_invariant_set(self) -> poly.Polyhedron:
         return self.__disturbance_invariant_set
 
     @property
-    def tightened_state_set(self):
+    def tightened_state_set(self) -> poly.Polyhedron:
         return self.__tightened_state_set
 
     @property
-    def tightened_input_set(self):
+    def tightened_input_set(self) -> poly.Polyhedron:
         return self.__tightened_input_set
 
     @property
-    def terminal_set(self):
+    def terminal_set(self) -> poly.Polyhedron:
         return self.__terminal_set
 
     @property
-    def feasible_set(self):
+    def feasible_set(self) -> poly.Polyhedron:
         return self.cal_feasible_set(self.__tightened_state_set, self.__tightened_input_set, self.__terminal_set)
 
     @MPCBase.problem.getter
-    def problem(self):
+    def problem(self) -> cp.Problem:
         return self.__problem
 
-    def cal_disturbance_invariant_set(self, alpha=0.2, epsilon=0.001):
+    def cal_disturbance_invariant_set(self, alpha=0.2, epsilon=0.001) -> poly.Polyhedron:
         alp = alpha
 
         # 由于多次给集合左乘 A_k，且 A_k 可逆，可以提前求好 A_k 的逆并在下面的 计算 1、计算 2 中右乘 A_k 的逆，这里为了方便理解，没有这么做

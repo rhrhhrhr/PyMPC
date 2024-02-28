@@ -2,6 +2,7 @@ import numpy as np
 import numpy.linalg as npl
 import cvxpy as cp
 import matplotlib.pyplot as plt
+from typing import List
 
 
 class PolyException(Exception):
@@ -28,28 +29,28 @@ class Polyhedron(object):
         self.__r_vec = r_vec
 
     @property
-    def n_edges(self):
+    def n_edges(self) -> int:
         return self.__n_edges
 
     @property
-    def n_dim(self):
+    def n_dim(self) -> int:
         return self.__n_dim
 
     @property
-    def l_mat(self):
+    def l_mat(self) -> np.ndarray:
         return self.__l_mat
 
     @property
-    def r_vec(self):
+    def r_vec(self) -> np.ndarray:
         return self.__r_vec
 
-    def __copy__(self, other: 'Polyhedron'):
+    def __copy__(self, other: 'Polyhedron') -> None:
         self.__n_edges = other.__n_edges
         self.__n_dim = other.__n_dim
         self.__l_mat = other.__l_mat
         self.__r_vec = other.__r_vec
 
-    def __str__(self):
+    def __str__(self) -> str:
         return ('====================================================================================================\n'
                 'left matrix @ x <= right vec\n'
                 '====================================================================================================\n'
@@ -61,7 +62,7 @@ class Polyhedron(object):
                 '====================================================================================================')
 
     # 为优化求解器的约束作接口
-    def __call__(self, point: np.ndarray) -> np.ndarray:
+    def __call__(self, point: np.ndarray or cp.Variable or cp.Parameter) -> np.ndarray or cp.Variable or cp.Parameter:
         return self.__l_mat @ point - self.__r_vec
 
     # 判断该点是否为内点
@@ -81,7 +82,7 @@ class Polyhedron(object):
         return self.belongs_to(other) and other.belongs_to(self)
 
     # 将不等式组右侧向量归一化，防止系数过大，影响支撑函数（线性规划）求解
-    def normalization(self):
+    def normalization(self) -> None:
         r_vec_abs = np.where(self.__r_vec == 0, 1, np.abs(self.__r_vec))
         self.__l_mat = self.__l_mat / r_vec_abs[:, np.newaxis]
         self.__r_vec = self.__r_vec / r_vec_abs
@@ -94,7 +95,7 @@ class Polyhedron(object):
         return self.__class__(l_mat, r_vec)
 
     # 去除冗余项
-    def remove_redundant_term(self):
+    def remove_redundant_term(self) -> None:
         if self.__n_edges >= 2:
             i = 0
             while i < self.__n_edges:
@@ -107,7 +108,7 @@ class Polyhedron(object):
                     i = i + 1
 
     # 傅里叶-莫茨金消元法，这里从最后一个元素开始倒着消除，因此使用该方法前应该把需要保留的元素放在最前面
-    def fourier_motzkin_elimination(self, n_dim: int):
+    def fourier_motzkin_elimination(self, n_dim: int) -> None:
         for _ in range(n_dim):
             pos_a = np.empty((0, self.__n_dim - 1))
             pos_b = np.empty(0)
@@ -140,7 +141,7 @@ class Polyhedron(object):
             self.__init__(new_a, new_b)
             self.remove_redundant_term()
 
-    def extend_dimensions(self, n_dim: int):
+    def extend_dimensions(self, n_dim: int) -> None:
         if n_dim < 0:
             raise PolyException('The extended dimension must be a positive integer!')
         elif n_dim > 0:
@@ -255,7 +256,7 @@ class Polyhedron(object):
         return res
 
     # 多边形绘图会有误差，因为采用等高线来画的，增加采样点的个数可以提高画图精度
-    def plot(self, ax: plt.Axes, x_lim=None, y_lim=None, default_bound=100, n_points=2000, color='b'):
+    def plot(self, ax: plt.Axes, x_lim=None, y_lim=None, default_bound=100, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
             raise PolyException('Only 2D polyhedron can be plotted!')
         if x_lim is None:
@@ -285,7 +286,7 @@ class Polyhedron(object):
         ax.contour(x_grid, y_grid, z, levels=0, colors=color)
 
     @staticmethod
-    def get_grid_lim(val_min, val_max, default_bound):
+    def get_grid_lim(val_min: int or float, val_max: int or float, default_bound: int or float) -> List[int or float]:
         if val_min == -float('inf') and val_max == float('inf'):
             lim = [-default_bound, default_bound]
         elif val_min == -float('inf') and val_max != float('inf'):
@@ -297,6 +298,7 @@ class Polyhedron(object):
         else:
             margin = 0.1 * (val_max - val_min)
             lim = [val_min - margin, val_max + margin]
+
         return lim
 
 
@@ -324,14 +326,14 @@ class UnitCube(Polyhedron):
         super().__init__(np.vstack((eye, -eye)), (side_length / 2) * np.ones(2 * dim))
 
     @property
-    def side_length(self):
+    def side_length(self) -> int or float:
         return self.__side_length
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f'Unit cube: dimension -> {self.n_dim}, side length -> {self.__side_length}.'
 
 
-def support_fun(eta: np.ndarray, p: Polyhedron) -> float or np.float64:
+def support_fun(eta: np.ndarray, p: Polyhedron) -> float:
     if eta.ndim != 1:
         raise PolyException('The parameter \'eta\' in calculating the support function of a polyhedron must be 1D')
     if eta.size != p.n_dim:
