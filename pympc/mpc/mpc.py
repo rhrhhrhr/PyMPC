@@ -4,7 +4,7 @@ import numpy.linalg as npl
 import scipy.linalg as spl
 import cvxpy as cp
 from typing import Tuple
-from .. import poly
+from .. import set
 
 
 class MPCException(Exception):
@@ -154,13 +154,13 @@ class MPCBase(LQR):
     def solver(self, value) -> None:
         self.__solver = value
 
-    def cal_terminal_set(self, state_set: poly.Polyhedron, input_set: poly.Polyhedron) -> poly.Polyhedron:
+    def cal_terminal_set(self, state_set: set.Polyhedron, input_set: set.Polyhedron) -> set.Polyhedron:
         # 在终端约束 Xf 内的一点 x 满足：
         # 1. 当采用控制律 u = Kx 时，状态约束和输入约束均满足 -- 这一条件描述的集合为 X 与 U @ K 的交集，集合与矩阵的乘法解释请参考文件poly
         # 2. 下一时刻的状态 x+ = A_k @ x 仍属于 Xf -- 这一条件描述的集合 set 被包含于 set @ A_k
         # 若设置终端约束集合为原点，则生成一个边长为0的单位立方体，否则计算最大的满足上述条件的集合
         if self.__zero_terminal_set:
-            terminal_set = poly.UnitCube(self.state_dim, 0)
+            terminal_set = set.UnitCube(self.state_dim, 0)
         else:
             set_k = state_set & (input_set @ self.k)
             terminal_set = copy.deepcopy(set_k)
@@ -177,8 +177,8 @@ class MPCBase(LQR):
 
         return terminal_set
 
-    def construct_problem(self, initial_constraints: cp.constraints.Constraint, state_set: poly.Polyhedron,
-                          input_set: poly.Polyhedron, terminal_set: poly.Polyhedron) -> cp.Problem:
+    def construct_problem(self, initial_constraints: cp.constraints.Constraint, state_set: set.Polyhedron,
+                          input_set: set.Polyhedron, terminal_set: set.Polyhedron) -> cp.Problem:
         cost = 0
         state_k = self.__state_series[0:self.state_dim]
 
@@ -193,11 +193,11 @@ class MPCBase(LQR):
 
             # x^+ = A @ x + B @ u
             state_k_next = self.__state_series[(k + 1) * self.state_dim:(k + 2) * self.state_dim]
-            constraints.append(cp.Zero(state_k_next - self.a @ state_k - self.b @ input_k))
+            constraints.append(state_k_next - self.a @ state_k - self.b @ input_k == 0)
 
             # x in X, u in U
-            constraints.append(cp.NonPos(state_set(state_k)))
-            constraints.append(cp.NonPos(input_set(input_k)))
+            constraints.append(state_set(state_k) <= 0)
+            constraints.append(input_set(input_k) <= 0)
 
             state_k = state_k_next
 
@@ -210,8 +210,8 @@ class MPCBase(LQR):
         #     input_k = self.__input_series[k * self.__input_dim:(k + 1) * self.__input_dim]
         #
         #     cost = cost + (state_k @ self.q @ state_k + input_k @ self.r @ input_k)
-        #     constraints.append(cp.NonPos(state_set(state_k)))
-        #     constraints.append(cp.NonPos(input_set(input_k)))
+        #     constraints.append(state_set(state_k) <= 0)
+        #     constraints.append(input_set(input_k) <= 0)
         #
         #     state_k = self.a @ state_k + self.b @ input_k
         #
@@ -219,16 +219,16 @@ class MPCBase(LQR):
 
         cost = cost + (state_k @ self.p @ state_k) / 2
         if self.__zero_terminal_set:
-            constraints.append(cp.Zero(state_k))
+            constraints.append(state_k == 0)
         else:
-            constraints.append(cp.NonPos(terminal_set(state_k)))
+            constraints.append(terminal_set(state_k) <= 0)
 
         problem = cp.Problem(cp.Minimize(cost), constraints)
 
         return problem
 
-    def cal_feasible_set(self, state_set: poly.Polyhedron, input_set: poly.Polyhedron,
-                         terminal_set: poly.Polyhedron) -> poly.Polyhedron:
+    def cal_feasible_set(self, state_set: set.Polyhedron, input_set: set.Polyhedron,
+                         terminal_set: set.Polyhedron) -> set.Polyhedron:
         # 这里先求出了M，C矩阵，于是知道了Xk = M*x + C*Uk，之后将约束条件转化为G*Xk <= h，再包含A_Uk*Uk <= b_Uk
         # 于是有
         # [G*M G*C ][x ]      [h   ]
@@ -268,7 +268,7 @@ class MPCBase(LQR):
         l_mat = np.block([[g @ m, g @ c], [zero, a_uk]])
         r_vec = np.hstack((h, b_uk))
 
-        feasible_set = poly.Polyhedron(l_mat, r_vec)
+        feasible_set = set.Polyhedron(l_mat, r_vec)
 
         # 傅里叶-莫茨金消元法，将控制输入变量U消去
         feasible_set.fourier_motzkin_elimination(self.input_dim * self.__pred_horizon)
@@ -278,7 +278,7 @@ class MPCBase(LQR):
 
 class MPC(MPCBase):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray, pred_horizon: int,
-                 state_set: poly.Polyhedron, input_set: poly.Polyhedron, zero_terminal_set=False, solver=cp.OSQP):
+                 state_set: set.Polyhedron, input_set: set.Polyhedron, zero_terminal_set=False, solver=cp.OSQP):
         super().__init__(a, b, q, r, pred_horizon, zero_terminal_set, solver)
 
         if not (self.state_dim == state_set.n_dim):
@@ -313,31 +313,31 @@ class MPC(MPCBase):
         return self.__problem
 
     @property
-    def state_set(self) -> poly.Polyhedron:
+    def state_set(self) -> set.Polyhedron:
         return self.__state_set
 
     @state_set.setter
-    def state_set(self, value: poly.Polyhedron) -> None:
+    def state_set(self, value: set.Polyhedron) -> None:
         if not self.state_dim == value.n_dim:
             raise MPCException('The dimension of the state set is Wrong!')
         self.__state_set = value
 
     @property
-    def input_set(self) -> poly.Polyhedron:
+    def input_set(self) -> set.Polyhedron:
         return self.__input_set
 
     @input_set.setter
-    def input_set(self, value: poly.Polyhedron) -> None:
+    def input_set(self, value: set.Polyhedron) -> None:
         if not self.input_dim == value.n_dim:
             raise MPCException('The dimension of the input set is Wrong!')
         self.__input_set = value
 
     @property
-    def terminal_set(self) -> poly.Polyhedron:
+    def terminal_set(self) -> set.Polyhedron:
         return self.__terminal_set
 
     @property
-    def feasible_set(self) -> poly.Polyhedron:
+    def feasible_set(self) -> set.Polyhedron:
         return self.cal_feasible_set(self.__state_set, self.__input_set, self.__terminal_set)
 
     def __call__(self, real_time_state: np.ndarray) -> np.ndarray:

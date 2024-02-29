@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pympc.poly as mp
+import pympc.set as mp
 
 if __name__ == '__main__':
-    # Test for poly = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+    # Test for set = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
     fig1, ax1 = plt.subplots(1, 1)
     ax1.grid(True)
     ax1.axis('equal')

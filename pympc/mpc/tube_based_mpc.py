@@ -1,10 +1,10 @@
-from .mpc import np, cp, poly, MPCException, MPCBase
+from .mpc import np, cp, set, MPCException, MPCBase
 # from .mpc import npl
 
 
 class TubeBasedMPC(MPCBase):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray, pred_horizon: int,
-                 state_set: poly.Polyhedron, input_set: poly.Polyhedron, noise_set: poly.Polyhedron,
+                 state_set: set.Polyhedron, input_set: set.Polyhedron, noise_set: set.Polyhedron,
                  zero_terminal_set=False, solver=cp.PIQP):
         super().__init__(a, b, q, r, pred_horizon, zero_terminal_set, solver)
 
@@ -43,41 +43,41 @@ class TubeBasedMPC(MPCBase):
                                                     self.__terminal_set)
 
     @property
-    def noise_set(self) -> poly.Polyhedron:
+    def noise_set(self) -> set.Polyhedron:
         return self.__noise_set
 
     @noise_set.setter
-    def noise_set(self, value: poly.Polyhedron) -> None:
+    def noise_set(self, value: set.Polyhedron) -> None:
         if not (self.state_dim == value.n_dim):
             raise MPCException('The dimension of the noise set do not match the state dimension!')
 
         self.__noise_set = value
 
     @property
-    def disturbance_invariant_set(self) -> poly.Polyhedron:
+    def disturbance_invariant_set(self) -> set.Polyhedron:
         return self.__disturbance_invariant_set
 
     @property
-    def tightened_state_set(self) -> poly.Polyhedron:
+    def tightened_state_set(self) -> set.Polyhedron:
         return self.__tightened_state_set
 
     @property
-    def tightened_input_set(self) -> poly.Polyhedron:
+    def tightened_input_set(self) -> set.Polyhedron:
         return self.__tightened_input_set
 
     @property
-    def terminal_set(self) -> poly.Polyhedron:
+    def terminal_set(self) -> set.Polyhedron:
         return self.__terminal_set
 
     @property
-    def feasible_set(self) -> poly.Polyhedron:
+    def feasible_set(self) -> set.Polyhedron:
         return self.cal_feasible_set(self.__tightened_state_set, self.__tightened_input_set, self.__terminal_set)
 
     @MPCBase.problem.getter
     def problem(self) -> cp.Problem:
         return self.__problem
 
-    def cal_disturbance_invariant_set(self, alpha=0.2, epsilon=0.001) -> poly.Polyhedron:
+    def cal_disturbance_invariant_set(self, alpha=0.2, epsilon=0.001) -> set.Polyhedron:
         alp = alpha
 
         # 由于多次给集合左乘 A_k，且 A_k 可逆，可以提前求好 A_k 的逆并在下面的 计算 1、计算 2 中右乘 A_k 的逆，这里为了方便理解，没有这么做
@@ -104,7 +104,7 @@ class TubeBasedMPC(MPCBase):
 
         alpha_array = np.zeros(self.__noise_set.n_edges)
         for i in range(self.__noise_set.n_edges):
-            alpha_array[i] = poly.support_fun(self.__noise_set.l_mat[i, :], a_k_s_noise_set) / a_k_s_noise_set.r_vec[i]
+            alpha_array[i] = set.support_fun(self.__noise_set.l_mat[i, :], a_k_s_noise_set) / a_k_s_noise_set.r_vec[i]
 
         alp = np.max(alpha_array)
 
@@ -114,7 +114,7 @@ class TubeBasedMPC(MPCBase):
         a_k_n_noise_set = a_k_s_noise_set
         sum_a_k_n_noise_set = sum_a_k_s_noise_set
         # 这里用一个单位球的内接超正方体代替单位球
-        unit_cube = poly.UnitCube(self.state_dim, 2 * epsilon / np.sqrt(self.state_dim))
+        unit_cube = set.UnitCube(self.state_dim, 2 * epsilon / np.sqrt(self.state_dim))
 
         while True:
             a_k_n = a_k @ a_k_n

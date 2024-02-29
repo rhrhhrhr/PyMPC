@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pympc.poly as mp
+import pympc.set as mp
 import pympc.mpc as mm
 
 if __name__ == '__main__':

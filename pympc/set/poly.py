@@ -62,7 +62,7 @@ class Polyhedron(object):
                 '====================================================================================================')
 
     # 为优化求解器的约束作接口
-    def __call__(self, point: np.ndarray or cp.Variable or cp.Parameter) -> np.ndarray or cp.Variable or cp.Parameter:
+    def __call__(self, point: np.ndarray or cp.Expression) -> np.ndarray or cp.Expression:
         return self.__l_mat @ point - self.__r_vec
 
     # 判断该点是否为内点
@@ -340,7 +340,7 @@ def support_fun(eta: np.ndarray, p: Polyhedron) -> int or float:
         raise PolyException('The dimension of the parameter \'eta\' must match the dimension of the polyhedron!')
 
     var = cp.Variable(p.n_dim)
-    prob = cp.Problem(cp.Maximize(eta @ var), [cp.NonPos(p.l_mat @ var - p.r_vec)])
+    prob = cp.Problem(cp.Maximize(eta @ var), [p(var) <= 0])
     prob.solve(solver=cp.GLPK)
 
     return prob.value
