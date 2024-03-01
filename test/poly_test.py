@@ -1,16 +1,18 @@
 import numpy as np
+import numpy.linalg as npl
+import cvxpy as cp
 import matplotlib.pyplot as plt
-import pympc.set as mp
+import pympc.set as ms
 
 if __name__ == '__main__':
-    # Test for set = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+    # Test for set = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
     fig1, ax1 = plt.subplots(1, 1)
     ax1.grid(True)
     ax1.axis('equal')
     ax1.set_title('Translation')
 
-    p1 = mp.Polyhedron(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), np.array([1, 0, 1, 0]))
-    p2 = mp.Polyhedron(np.array([[-3, 1], [-1, -1], [1, 0]]), np.array([3, 1, 0]))
+    p1 = ms.Polyhedron(np.array([[1, 0], [-1, 0], [0, 1], [0, -1]]), np.array([1, 0, 1, 0]))
+    p2 = ms.Polyhedron(np.array([[-3, 1], [-1, -1], [1, 0]]), np.array([3, 1, 0]))
     p3 = np.array([0, 2]) + p1
 
     p1.plot(ax1, color='b')
@@ -61,7 +63,7 @@ if __name__ == '__main__':
     ax5.axis('equal')
     ax5.set_title('$R^2$')
 
-    R2 = mp.Rn(2)
+    R2 = ms.Rn(2)
 
     R2.plot(ax5)
 
@@ -70,8 +72,19 @@ if __name__ == '__main__':
     ax6.axis('equal')
     ax6.set_title('Unit cube')
 
-    unit_cube = mp.Polyhedron(np.vstack((np.eye(2), -np.eye(2))), np.ones(2 * 2))
+    unit_cube = ms.Polyhedron(np.vstack((np.eye(2), -np.eye(2))), np.ones(2 * 2))
 
     unit_cube.plot(ax6)
+
+    P = np.array([[1, -1], [-1, 3]])
+    e = p4.get_max_ellipsoid(P)
+
+    fig7, ax7 = plt.subplots(1, 1)
+    ax7.axis('equal')
+    ax7.set_xlim([-2, 2])
+    ax7.grid(True)
+
+    p4.plot(ax7, x_lim=[-2, 2])
+    e.plot(ax7)
 
     plt.show()

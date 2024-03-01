@@ -34,6 +34,17 @@
 
 ![img](results/lqr_and_linear_mpc/fig_3.png)
 
+## 椭球终端集和多面体终端集
+### 状态轨迹对比
+可以看出离稳定点越远，区别越大，反之越小，但都可以稳定（多面体终端集初始可行域更大）
+
+![img](results/polyhedron_and_ellipsoid_terminal_set/fig_1.gif)
+![img](results/polyhedron_and_ellipsoid_terminal_set/fig_2.gif)
+
+### 输入序列对比
+![img](results/polyhedron_and_ellipsoid_terminal_set/fig_3.png)
+![img](results/polyhedron_and_ellipsoid_terminal_set/fig_4.png)
+
 ## Tube based MPC结果
 ### 状态轨迹
 实际状态始终在以名义状态为中心的管道内

@@ -1,7 +1,4 @@
-import numpy as np
-import numpy.linalg as npl
-import cvxpy as cp
-import matplotlib.pyplot as plt
+from .ellipsoid import np, npl, cp, plt, Ellipsoid
 from typing import List
 
 
@@ -255,25 +252,32 @@ class Polyhedron(object):
 
         return res
 
+    def get_max_ellipsoid(self, p: np.ndarray, center: np.ndarray = None) -> Ellipsoid:
+        ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
+
+        if not self.is_interior_point(ellipsoid_center):
+            raise PolyException('Cannot find a maximum ellipsoid since the center is not in the polyhedron!')
+
+        p_bar = npl.cholesky(p)
+        r_vec_bar = self.__r_vec + self.__l_mat @ ellipsoid_center
+        l_mat_bar = self.__l_mat @ npl.inv(p_bar).T
+        min_center_to_edge_distance = np.min(np.abs(r_vec_bar) / npl.norm(l_mat_bar, ord=2, axis=1))
+
+        return Ellipsoid(p, min_center_to_edge_distance ** 2, center)
+
     # 多边形绘图会有误差，因为采用等高线来画的，增加采样点的个数可以提高画图精度
-    def plot(self, ax: plt.Axes, x_lim=None, y_lim=None, default_bound=100, n_points=2000, color='b') -> None:
+    def plot(self, ax: plt.Axes, x_lim: List[int or float] = None, y_lim: List[int or float] = None, default_bound=100,
+             n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
             raise PolyException('Only 2D polyhedron can be plotted!')
         if x_lim is None:
             x_min = -support_fun(np.array([-1, 0]), self)
             x_max = support_fun(np.array([1, 0]), self)
             x_lim = self.get_grid_lim(x_min, x_max, default_bound)
-
-        elif not isinstance(x_lim, list):
-            raise PolyException('The parameter \'x_lim\' must be a list!')
-
         if y_lim is None:
             y_min = -support_fun(np.array([0, -1]), self)
             y_max = support_fun(np.array([0, 1]), self)
             y_lim = self.get_grid_lim(y_min, y_max, default_bound)
-
-        elif not isinstance(y_lim, list):
-            raise PolyException('The parameter \'y_lim\' must be a list!')
 
         x = np.linspace(*x_lim, n_points)
         y = np.linspace(*y_lim, n_points)

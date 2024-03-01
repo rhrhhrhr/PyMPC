@@ -11,10 +11,21 @@ class MPCException(Exception):
     pass
 
 
+class MPCError(Exception):
+    def __init__(self, code):
+        self.__code = code
+
+    def __str__(self):
+        if self.__code == 0:
+            return 'The dimensions of the state parameters do not match!'
+        elif self.__code == 1:
+            return 'The terminal set type can only be \'zero\', \'ellipsoid\' or \'polyhedron\''
+
+
 class LQR(object):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray):
         if not (a.ndim == b.ndim == q.ndim == r.ndim == 2):
-            raise MPCException('The parameters a,b,q,r must be 2D array!')
+            raise MPCException('The parameters A, B, Q, R must be 2D array!')
         if not (a.shape[0] == a.shape[1] == b.shape[0] == q.shape[0] == q.shape[1]):
             raise MPCException('The dimensions of the state parameters do not match!')
         if not (b.shape[1] == r.shape[0] == r.shape[1]):
@@ -79,11 +90,13 @@ class LQR(object):
 
 class MPCBase(LQR):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray, pred_horizon: int,
-                 zero_terminal_set, solver):
+                 terminal_set_type: str, solver: str):
         super().__init__(a, b, q, r)
 
         if pred_horizon <= 0:
             raise MPCException('The prediction horizon must be a positive integer!')
+        if terminal_set_type not in ['zero', 'ellipsoid', 'polyhedron']:
+            raise MPCException('The terminal set type can only be \'zero\', \'ellipsoid\' or \'polyhedron\'')
 
         self.__pred_horizon = pred_horizon
 
@@ -91,7 +104,8 @@ class MPCBase(LQR):
         self.__state_series = cp.Variable(self.state_dim * (pred_horizon + 1))
         self.__input_series = cp.Variable(self.input_dim * pred_horizon)
 
-        self.__zero_terminal_set = zero_terminal_set
+        self.__terminal_set_type = terminal_set_type
+
         self.__solver = solver
 
     @property
@@ -135,12 +149,12 @@ class MPCBase(LQR):
         self.__real_time_state.value = value
 
     @property
-    def zero_terminal_set(self) -> bool:
-        return self.__zero_terminal_set
+    def terminal_set_type(self) -> str:
+        return self.__terminal_set_type
 
-    @zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool) -> None:
-        self.__zero_terminal_set = value
+    @terminal_set_type.setter
+    def terminal_set_type(self, value: str) -> None:
+        self.__terminal_set_type = value
 
     @property
     def problem(self) -> None:
@@ -159,8 +173,11 @@ class MPCBase(LQR):
         # 1. 当采用控制律 u = Kx 时，状态约束和输入约束均满足 -- 这一条件描述的集合为 X 与 U @ K 的交集，集合与矩阵的乘法解释请参考文件poly
         # 2. 下一时刻的状态 x+ = A_k @ x 仍属于 Xf -- 这一条件描述的集合 set 被包含于 set @ A_k
         # 若设置终端约束集合为原点，则生成一个边长为0的单位立方体，否则计算最大的满足上述条件的集合
-        if self.__zero_terminal_set:
+        if self.__terminal_set_type == 'zero':
             terminal_set = set.UnitCube(self.state_dim, 0)
+        elif self.__terminal_set_type == 'ellipsoid':
+            state_set_in_terminal = state_set & (input_set @ self.k)
+            terminal_set = state_set_in_terminal.get_max_ellipsoid(self.p / 2)
         else:
             set_k = state_set & (input_set @ self.k)
             terminal_set = copy.deepcopy(set_k)
@@ -218,7 +235,7 @@ class MPCBase(LQR):
         # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =  = = = = = = = = = = = = = = = = = = = =
 
         cost = cost + (state_k @ self.p @ state_k) / 2
-        if self.__zero_terminal_set:
+        if self.__terminal_set_type == 'zero':
             constraints.append(state_k == 0)
         else:
             constraints.append(terminal_set(state_k) <= 0)
@@ -236,6 +253,9 @@ class MPCBase(LQR):
         # [ 0  A_Uk][Uk]      [b_Uk]
         # a_bar, b_bar分别代表上面两个矩阵
 
+        if self.__terminal_set_type == 'ellipsoid':
+            raise MPCException('The function of calculating the feasible set when the terminal set is a ellipsoid has '
+                               'not been implemented!')
         # 生成矩阵 M
         m = np.zeros((self.state_dim * (self.__pred_horizon + 1), self.state_dim))
         a_i = np.eye(self.state_dim)
@@ -278,8 +298,8 @@ class MPCBase(LQR):
 
 class MPC(MPCBase):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray, pred_horizon: int,
-                 state_set: set.Polyhedron, input_set: set.Polyhedron, zero_terminal_set=False, solver=cp.OSQP):
-        super().__init__(a, b, q, r, pred_horizon, zero_terminal_set, solver)
+                 state_set: set.Polyhedron, input_set: set.Polyhedron, terminal_set_type='polyhedron', solver=cp.OSQP):
+        super().__init__(a, b, q, r, pred_horizon, terminal_set_type, solver)
 
         if not (self.state_dim == state_set.n_dim):
             raise MPCException('The dimensions of the state parameters do not match!')
@@ -298,15 +318,26 @@ class MPC(MPCBase):
                                                 input_set,
                                                 self.__terminal_set)
 
-    @MPCBase.zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool) -> None:
-        if self.zero_terminal_set != value:
-            MPCBase.zero_terminal_set.fset(self, value)
+    @MPCBase.terminal_set_type.setter
+    def terminal_set_type(self, value: str) -> None:
+        if value not in ['zero', 'ellipsoid', 'polyhedron']:
+            raise MPCException('The terminal set type can only be \'zero\', \'ellipsoid\' or \'polyhedron\'')
+
+        if self.terminal_set_type != value:
+            MPCBase.terminal_set_type.fset(self, value)
             self.__terminal_set = self.cal_terminal_set(self.__state_set, self.__input_set)
             self.__problem = self.construct_problem(self.__initial_constraints,
-                                                    self.state_set,
-                                                    self.input_set,
+                                                    self.__state_set,
+                                                    self.__input_set,
                                                     self.__terminal_set)
+
+    @MPCBase.pred_horizon.setter
+    def pred_horizon(self, value: int) -> None:
+        MPCBase.pred_horizon.fset(self, value)
+        self.__problem = self.construct_problem(self.__initial_constraints,
+                                                self.__state_set,
+                                                self.__input_set,
+                                                self.__terminal_set)
 
     @MPCBase.problem.getter
     def problem(self) -> cp.Problem:
@@ -316,21 +347,9 @@ class MPC(MPCBase):
     def state_set(self) -> set.Polyhedron:
         return self.__state_set
 
-    @state_set.setter
-    def state_set(self, value: set.Polyhedron) -> None:
-        if not self.state_dim == value.n_dim:
-            raise MPCException('The dimension of the state set is Wrong!')
-        self.__state_set = value
-
     @property
     def input_set(self) -> set.Polyhedron:
         return self.__input_set
-
-    @input_set.setter
-    def input_set(self, value: set.Polyhedron) -> None:
-        if not self.input_dim == value.n_dim:
-            raise MPCException('The dimension of the input set is Wrong!')
-        self.__input_set = value
 
     @property
     def terminal_set(self) -> set.Polyhedron:

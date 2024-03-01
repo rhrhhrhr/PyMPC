@@ -5,8 +5,11 @@ from .mpc import np, cp, set, MPCException, MPCBase
 class TubeBasedMPC(MPCBase):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray, pred_horizon: int,
                  state_set: set.Polyhedron, input_set: set.Polyhedron, noise_set: set.Polyhedron,
-                 zero_terminal_set=False, solver=cp.PIQP):
-        super().__init__(a, b, q, r, pred_horizon, zero_terminal_set, solver)
+                 terminal_set_type='polyhedron', solver=cp.PIQP):
+        super().__init__(a, b, q, r, pred_horizon, terminal_set_type, solver)
+
+        if terminal_set_type == 'ellipsoid':
+            raise MPCException('Terminal set type \'ellipsoid\' has not been adopted for tube based MPC!')
 
         if not (self.state_dim == noise_set.n_dim):
             raise MPCException('The dimension of the noise set do not match the state dimension!')
@@ -32,26 +35,30 @@ class TubeBasedMPC(MPCBase):
 
         return self.input_ini.value - self.k @ (real_time_state - self.state_ini.value)
 
-    @MPCBase.zero_terminal_set.setter
-    def zero_terminal_set(self, value: bool) -> None:
-        if self.zero_terminal_set != value:
-            MPCBase.zero_terminal_set.fset(self, value)
+    @MPCBase.terminal_set_type.setter
+    def terminal_set_type(self, value: bool) -> None:
+        if value not in ['zero', 'polyhedron']:
+            raise MPCException('The terminal set type of tube based MPC can only be \'zero\' or \'polyhedron\'')
+
+        if self.terminal_set_type != value:
+            MPCBase.terminal_set_type.fset(self, value)
             self.__terminal_set = self.cal_terminal_set(self.__tightened_state_set, self.__tightened_input_set)
             self.__problem = self.construct_problem(self.__initial_constraints,
                                                     self.__tightened_state_set,
                                                     self.__tightened_input_set,
                                                     self.__terminal_set)
 
+    @MPCBase.pred_horizon.setter
+    def pred_horizon(self, value: int) -> None:
+        MPCBase.pred_horizon.fset(self, value)
+        self.__problem = self.construct_problem(self.__initial_constraints,
+                                                self.__tightened_state_set,
+                                                self.__tightened_input_set,
+                                                self.__terminal_set)
+
     @property
     def noise_set(self) -> set.Polyhedron:
         return self.__noise_set
-
-    @noise_set.setter
-    def noise_set(self, value: set.Polyhedron) -> None:
-        if not (self.state_dim == value.n_dim):
-            raise MPCException('The dimension of the noise set do not match the state dimension!')
-
-        self.__noise_set = value
 
     @property
     def disturbance_invariant_set(self) -> set.Polyhedron:

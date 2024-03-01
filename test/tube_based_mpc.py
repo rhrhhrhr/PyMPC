@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import pympc.set as mp
+import pympc.set as ms
 import pympc.mpc as mm
 
 if __name__ == '__main__':
@@ -22,9 +22,9 @@ if __name__ == '__main__':
     A_w = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
     b_w = np.array([0.1, 0.1, 0.1, 0.1])
 
-    x_set = mp.Polyhedron(A_x, b_x)
-    u_set = mp.Polyhedron(A_u, b_u)
-    w_set = mp.Polyhedron(A_w, b_w)
+    x_set = ms.Polyhedron(A_x, b_x)
+    u_set = ms.Polyhedron(A_u, b_u)
+    w_set = ms.Polyhedron(A_w, b_w)
 
     # 各种集合的计算量较大，可能会花费较长时间
     t_mpc = mm.TubeBasedMPC(A, B, Q, R, N, x_set, u_set, w_set)
