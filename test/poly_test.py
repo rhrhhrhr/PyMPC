@@ -84,7 +84,7 @@ if __name__ == '__main__':
     ax7.set_xlim([-2, 2])
     ax7.grid(True)
 
-    p4.plot(ax7, x_lim=[-2, 2])
-    e.plot(ax7)
+    p4.plot(ax7, x_lim=[-2, 2], color='b')
+    e.plot(ax7, color='r')
 
     plt.show()

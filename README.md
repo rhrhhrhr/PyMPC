@@ -14,6 +14,8 @@
 ![img](results/poly_test/fig_3.png)
 
 ### 线性坐标变换（对集合进行矩阵乘法）
+实际可以进行升维和降维，这里未展示
+
 ![img](results/poly_test/fig_4.png)
 
 ### 向量空间
@@ -21,6 +23,9 @@
 
 ### 单位立方体
 ![img](results/poly_test/fig_6.png)
+
+### 一个多面体内的最大椭球
+![img](results/poly_test/fig_7.png)
 
 ## LQR 与 MPC 对比结果
 ### 状态轨迹对比
@@ -34,7 +39,7 @@
 
 ![img](results/lqr_and_linear_mpc/fig_3.png)
 
-## 椭球终端集和多面体终端集
+## 多面体终端集椭球终端集
 ### 状态轨迹对比
 可以看出离稳定点越远，区别越大，反之越小，但都可以稳定（多面体终端集初始可行域更大）
 

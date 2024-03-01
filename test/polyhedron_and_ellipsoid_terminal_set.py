@@ -92,8 +92,6 @@ if __name__ == '__main__':
 
         plt.pause(1)
 
-        plt.savefig(rf'..\results\polyhedron_and_ellipsoid_terminal_set\fig_2_{k}.png', dpi=300, bbox_inches='tight')
-
         line_2.remove()
         line_4.remove()
 
@@ -114,7 +112,5 @@ if __name__ == '__main__':
     ax2.step(iterations, np.ones(T) * -1, 'y-.')
 
     ax2.legend(loc='upper right')
-
-    plt.savefig(rf'..\results\polyhedron_and_ellipsoid_terminal_set\fig_4.png', dpi=300, bbox_inches='tight')
 
     plt.show()
