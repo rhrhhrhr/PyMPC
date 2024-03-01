@@ -24,7 +24,7 @@
 ### 单位立方体
 ![img](results/poly_test/fig_6.png)
 
-### 一个多面体内的最大椭球
+### 一个多面体内的最大椭球（球心确定）
 ![img](results/poly_test/fig_7.png)
 
 ## LQR 与 MPC 对比结果
