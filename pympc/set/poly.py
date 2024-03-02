@@ -68,12 +68,7 @@ class Polyhedron(object):
 
     # 判断此多边形是否被包含于另一个多边形
     def belongs_to(self, other: 'Polyhedron') -> bool:
-        res = True
-
-        for i in range(other.__n_edges):
-            res = res and (support_fun(other.__l_mat[i, :], self) <= other.__r_vec[i])
-
-        return res
+        return all([support_fun(other.__l_mat[i, :], self) <= other.__r_vec[i] for i in range(other.__n_edges)])
 
     def equals_to(self, other: 'Polyhedron') -> bool:
         return self.belongs_to(other) and other.belongs_to(self)
@@ -154,14 +149,8 @@ class Polyhedron(object):
     # 闵可夫斯基和（或平移）
     def __add__(self, other: 'Polyhedron' or np.ndarray) -> 'Polyhedron':
         if isinstance(other, Polyhedron):
-            h_self_other = np.zeros(self.__n_edges)
-            h_other_self = np.zeros(other.__n_edges)
-
-            for i in range(self.__n_edges):
-                h_self_other[i] = support_fun(self.__l_mat[i, :], other)
-
-            for i in range(other.__n_edges):
-                h_other_self[i] = support_fun(other.__l_mat[i, :], self)
+            h_self_other = np.array([support_fun(self.__l_mat[i, :], other) for i in range(self.__n_edges)])
+            h_other_self = np.array([support_fun(other.__l_mat[i, :], self) for i in range(other.__n_edges)])
 
             res_l_mat = np.vstack((self.__l_mat, other.__l_mat))
             res_r_vec = np.hstack((self.__r_vec + h_self_other, other.__r_vec + h_other_self))
@@ -188,10 +177,7 @@ class Polyhedron(object):
     # 即若 p2 = p1 + p3，则 p3 = p2 - p1，只有当输入为一个点（数组）时该运算等价于 (-p1) + p2
     def __sub__(self, other: 'Polyhedron' or np.ndarray) -> 'Polyhedron':
         if isinstance(other, Polyhedron):
-            h_self_other = np.zeros(self.__n_edges)
-
-            for i in range(self.__n_edges):
-                h_self_other[i] = support_fun(self.__l_mat[i, :], other)
+            h_self_other = np.array([support_fun(self.__l_mat[i, :], other) for i in range(self.__n_edges)])
 
             res = self.__class__(self.__l_mat, self.__r_vec - h_self_other)
             res.remove_redundant_term()
