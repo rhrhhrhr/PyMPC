@@ -1,6 +1,4 @@
 import numpy as np
-import numpy.linalg as npl
-import cvxpy as cp
 import matplotlib.pyplot as plt
 import pympc.set as ms
 

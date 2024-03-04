@@ -1,19 +1,13 @@
-import numpy as np
 import numpy.linalg as npl
-import cvxpy as cp
-import matplotlib.pyplot as plt
+from .base import *
 
 
-class EllipsoidException(Exception):
-    pass
-
-
-class Ellipsoid(object):
+class Ellipsoid(SetBase):
     def __init__(self, p: np.ndarray, alpha: int or float, center: np.ndarray = None):
         try:
             _ = npl.cholesky(p)
         except npl.LinAlgError:
-            raise EllipsoidException('The matrix of ellipsoid must be positive definite!')
+            raise SetTypeError('\'P\' matrix', 'ellipsoid', 'positive definite matrix')
 
         self.__p = p
         self.__n_dim = p.shape[0]
@@ -32,9 +26,9 @@ class Ellipsoid(object):
     def is_interior_point(self, point: np.ndarray) -> bool:
         return np.all((point - self.__center) @ self.__p @ (point - self.__center) - self.__alpha <= 0)
 
-    def plot(self, ax: plt.Axes, n_points=2000, color='b'):
+    def plot(self, ax: plt.Axes, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
-            raise EllipsoidException('Only 2D ellipsoid can be plotted!')
+            raise SetPlotError()
 
         axis_max = np.sqrt(self.__alpha / npl.eigvals(self.__p))
         x_max, y_max = axis_max * 1.5
@@ -51,3 +45,47 @@ class Ellipsoid(object):
              y_grid ** 2 * self.__p[1, 1])
 
         ax.contour(x_grid, y_grid, z, levels=[self.__alpha], colors=color)
+
+    @property
+    def p(self) -> np.ndarray:
+        return self.__p
+
+    @property
+    def n_dim(self) -> int:
+        return self.__n_dim
+
+    @property
+    def alpha(self) -> int or float:
+        return self.__alpha
+
+    @property
+    def center(self) -> np.ndarray:
+        return self.__center
+
+    def __add__(self, other: 'Ellipsoid' or np.ndarray) -> 'Ellipsoid':
+        if isinstance(other, Ellipsoid):
+            raise SetNotImplementedError('pontryagin difference', 'ellipsoid')
+        else:
+            return self.__class__(self.__p, self.__alpha, self.__center + other)
+
+    def __sub__(self, other: 'Ellipsoid' or np.ndarray) -> 'Ellipsoid':
+        if isinstance(other, Ellipsoid):
+            raise SetNotImplementedError('pontryagin difference', 'ellipsoid')
+        else:
+            return self.__add__(-other)
+
+    def __matmul__(self, other: np.ndarray) -> 'Ellipsoid':
+        raise SetNotImplementedError('coordinate transformation', 'ellipsoid')
+
+    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs) -> 'Ellipsoid' or NotImplemented:
+        return NotImplemented
+
+    # 多面体的放缩
+    def __mul__(self, other: int or float) -> 'Ellipsoid':
+        if other < 0:
+            raise SetCalculationError('ellipsoid', 'multiplied', 'positive number')
+
+        return self.__class__(self.__p, self.__alpha * other, self.__center)
+
+    def __and__(self, other: 'Ellipsoid') -> 'Ellipsoid':
+        raise SetNotImplementedError('intersection', 'ellipsoid')

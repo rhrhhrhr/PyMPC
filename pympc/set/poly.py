@@ -1,12 +1,9 @@
-from .ellipsoid import np, npl, cp, plt, Ellipsoid
-from typing import List
+import typing
+from .base import *
+from .ellipsoid import npl, Ellipsoid
 
 
-class PolyException(Exception):
-    pass
-
-
-class Polyhedron(object):
+class Polyhedron(SetBase):
     # 用线性不等式组 A @ x <= b 来表示一个多边形
     # n_edges: 边的个数
     # n_dim: 多面体维度
@@ -15,11 +12,11 @@ class Polyhedron(object):
 
     def __init__(self, l_mat: np.ndarray, r_vec: np.ndarray):
         if l_mat.ndim != 2:
-            raise PolyException('The left matrix must be a 2D array!')
+            raise SetTypeError('left matrix', 'polyhedron', '2D array')
         if r_vec.ndim != 1:
-            raise PolyException('The right vector must be a 1D array!')
+            raise SetTypeError('right vector', 'polyhedron', '1D array')
         if l_mat.shape[0] != r_vec.shape[0]:
-            raise PolyException('The row number of the left matrix must match the dimension of the right vector!')
+            raise SetDimensionError('left matrix', 'right vector')
 
         self.__n_edges, self.__n_dim = l_mat.shape
         self.__l_mat = l_mat
@@ -65,6 +62,47 @@ class Polyhedron(object):
     # 判断该点是否为内点
     def is_interior_point(self, point: np.ndarray) -> bool:
         return np.all(self.__l_mat @ point - self.__r_vec <= 0)
+
+    # 多边形绘图会有误差，因为采用等高线来画的，增加采样点的个数可以提高画图精度
+    def plot(self, ax: plt.Axes, x_lim: typing.List[int or float] = None, y_lim: typing.List[int or float] = None,
+             default_bound=100, n_points=2000, color='b') -> None:
+        if self.__n_dim != 2:
+            raise SetPlotError()
+        if x_lim is None:
+            x_min = -support_fun(np.array([-1, 0]), self)
+            x_max = support_fun(np.array([1, 0]), self)
+            x_lim = self.get_grid_lim(x_min, x_max, default_bound)
+        if y_lim is None:
+            y_min = -support_fun(np.array([0, -1]), self)
+            y_max = support_fun(np.array([0, 1]), self)
+            y_lim = self.get_grid_lim(y_min, y_max, default_bound)
+
+        x = np.linspace(*x_lim, n_points)
+        y = np.linspace(*y_lim, n_points)
+        x_grid, y_grid = np.meshgrid(x, y)
+
+        z = np.sum(np.maximum(self.__l_mat[:, 0, np.newaxis, np.newaxis] * x_grid
+                              + self.__l_mat[:, 1, np.newaxis, np.newaxis] * y_grid
+                              - self.__r_vec[:, np.newaxis, np.newaxis], 0), axis=0)
+
+        ax.contour(x_grid, y_grid, z, levels=0, colors=color)
+
+    @staticmethod
+    def get_grid_lim(val_min: int or float, val_max: int or float, default_bound: int or float) \
+            -> typing.List[int or float]:
+        if val_min == -float('inf') and val_max == float('inf'):
+            lim = [-default_bound, default_bound]
+        elif val_min == -float('inf') and val_max != float('inf'):
+            bound = abs(val_max) * 1.2
+            lim = [-bound, bound]
+        elif val_min != -float('inf') and val_max == float('inf'):
+            bound = abs(val_min) * 1.2
+            lim = [-bound, bound]
+        else:
+            margin = 0.1 * (val_max - val_min)
+            lim = [val_min - margin, val_max + margin]
+
+        return lim
 
     # 判断此多边形是否被包含于另一个多边形
     def belongs_to(self, other: 'Polyhedron') -> bool:
@@ -135,7 +173,7 @@ class Polyhedron(object):
 
     def extend_dimensions(self, n_dim: int) -> None:
         if n_dim < 0:
-            raise PolyException('The extended dimension must be a positive integer!')
+            raise SetTypeError('extended dimension', 'polyhedron', 'positive integer')
         elif n_dim > 0:
             zero_1 = np.zeros((self.__n_edges, n_dim))
             zero_2 = np.zeros((n_dim, self.__n_dim))
@@ -160,9 +198,9 @@ class Polyhedron(object):
 
         else:
             if other.ndim != 1:
-                raise PolyException('A polyhedron can only be added by a 1D array!')
+                raise SetCalculationError('polyhedron', 'added', '1D array')
             if other.size != self.__n_dim:
-                raise PolyException('To add up a polyhedron and an array, their dimensions must match!')
+                raise SetCalculationError('polyhedron', 'added', 'array with matching dimension')
 
             res = self.__class__(self.__l_mat, self.__r_vec + self.__l_mat @ other)
 
@@ -191,9 +229,9 @@ class Polyhedron(object):
     # 多面体坐标变换，Poly_new = Poly @ mat 意味着 Poly 是将 Poly_new 中的所有点通过 mat 映射后的区域，这一定义是为了方便计算不变集
     def __matmul__(self, other: np.ndarray) -> 'Polyhedron':
         if other.ndim != 2:
-            raise PolyException('A polyhedron can be only multiplied by a 2D array!')
+            raise SetCalculationError('polyhedron', 'multiplied', '2D array')
         if other.shape[0] != self.__n_dim:
-            raise PolyException('The column number of the matrix does not match the polyhedron\'s dimension!')
+            raise SetCalculationError('polyhedron', 'multiplied', 'array with matching dimension')
 
         return self.__class__(self.__l_mat @ other, self.__r_vec)
 
@@ -218,20 +256,12 @@ class Polyhedron(object):
 
         return res
 
-    # 多面体的放缩
     def __mul__(self, other: int or float) -> 'Polyhedron':
         if other < 0:
-            raise PolyException('A polyhedron can only multiply a positive number!')
+            raise SetCalculationError('polyhedron', 'multiplied', 'positive number')
 
         return self.__class__(self.__l_mat / other, self.__r_vec)
 
-    def __rmul__(self, other: int or float) -> 'Polyhedron':
-        return self.__mul__(other)
-
-    def __truediv__(self, other: int or float) -> 'Polyhedron':
-        return self.__mul__(1 / other)
-
-    # 多面体取交集
     def __and__(self, other: 'Polyhedron') -> 'Polyhedron':
         res = self.__class__(np.vstack((self.__l_mat, other.__l_mat)), np.hstack((self.__r_vec, other.__r_vec)))
         res.remove_redundant_term()
@@ -242,7 +272,7 @@ class Polyhedron(object):
         ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
 
         if not self.is_interior_point(ellipsoid_center):
-            raise PolyException('Cannot find a maximum ellipsoid since the center is not in the polyhedron!')
+            raise SetError('Cannot find a maximum ellipsoid since the center is not in the polyhedron!')
 
         p_bar = npl.cholesky(p)
         r_vec_bar = self.__r_vec + self.__l_mat @ ellipsoid_center
@@ -251,51 +281,11 @@ class Polyhedron(object):
 
         return Ellipsoid(p, min_center_to_edge_distance ** 2, center)
 
-    # 多边形绘图会有误差，因为采用等高线来画的，增加采样点的个数可以提高画图精度
-    def plot(self, ax: plt.Axes, x_lim: List[int or float] = None, y_lim: List[int or float] = None, default_bound=100,
-             n_points=2000, color='b') -> None:
-        if self.__n_dim != 2:
-            raise PolyException('Only 2D polyhedron can be plotted!')
-        if x_lim is None:
-            x_min = -support_fun(np.array([-1, 0]), self)
-            x_max = support_fun(np.array([1, 0]), self)
-            x_lim = self.get_grid_lim(x_min, x_max, default_bound)
-        if y_lim is None:
-            y_min = -support_fun(np.array([0, -1]), self)
-            y_max = support_fun(np.array([0, 1]), self)
-            y_lim = self.get_grid_lim(y_min, y_max, default_bound)
-
-        x = np.linspace(*x_lim, n_points)
-        y = np.linspace(*y_lim, n_points)
-        x_grid, y_grid = np.meshgrid(x, y)
-
-        z = np.sum(np.maximum(self.l_mat[:, 0, np.newaxis, np.newaxis] * x_grid
-                              + self.l_mat[:, 1, np.newaxis, np.newaxis] * y_grid
-                              - self.r_vec[:, np.newaxis, np.newaxis], 0), axis=0)
-
-        ax.contour(x_grid, y_grid, z, levels=0, colors=color)
-
-    @staticmethod
-    def get_grid_lim(val_min: int or float, val_max: int or float, default_bound: int or float) -> List[int or float]:
-        if val_min == -float('inf') and val_max == float('inf'):
-            lim = [-default_bound, default_bound]
-        elif val_min == -float('inf') and val_max != float('inf'):
-            bound = abs(val_max) * 1.2
-            lim = [-bound, bound]
-        elif val_min != -float('inf') and val_max == float('inf'):
-            bound = abs(val_min) * 1.2
-            lim = [-bound, bound]
-        else:
-            margin = 0.1 * (val_max - val_min)
-            lim = [val_min - margin, val_max + margin]
-
-        return lim
-
 
 class Rn(Polyhedron):
     def __init__(self, dim: int):
         if dim <= 0:
-            raise PolyException('The dimension of Rn must be a positive integer!')
+            raise SetTypeError('dimension', 'Rn', 'positive integer')
 
         super().__init__(np.zeros((1, dim)), np.zeros(1))
 
@@ -306,9 +296,9 @@ class Rn(Polyhedron):
 class UnitCube(Polyhedron):
     def __init__(self, dim: int, side_length: int or float):
         if dim <= 0:
-            raise PolyException('The dimension of a cube must be a positive integer!')
+            raise SetTypeError('dimension', 'unit cube', 'positive integer')
         if side_length < 0:
-            raise PolyException('The side length of a cube must be non-negative!')
+            raise SetTypeError('side length', 'unit cube', 'non-negative real number')
 
         self.__side_length = side_length
         eye = np.eye(dim)
@@ -321,16 +311,3 @@ class UnitCube(Polyhedron):
 
     def __str__(self) -> str:
         return f'Unit cube: dimension -> {self.n_dim}, side length -> {self.__side_length}.'
-
-
-def support_fun(eta: np.ndarray, p: Polyhedron) -> int or float:
-    if eta.ndim != 1:
-        raise PolyException('The parameter \'eta\' in calculating the support function of a polyhedron must be 1D')
-    if eta.size != p.n_dim:
-        raise PolyException('The dimension of the parameter \'eta\' must match the dimension of the polyhedron!')
-
-    var = cp.Variable(p.n_dim)
-    prob = cp.Problem(cp.Maximize(eta @ var), [p(var) <= 0])
-    prob.solve(solver=cp.GLPK)
-
-    return prob.value

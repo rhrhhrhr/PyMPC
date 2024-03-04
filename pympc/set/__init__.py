@@ -1,7 +1,8 @@
 import traceback
 
 try:
-    from .poly import PolyException, Polyhedron, Rn, UnitCube, support_fun
-    from .ellipsoid import EllipsoidException, Ellipsoid
-except PolyException or EllipsoidException:
+    from .base import SetError, support_fun
+    from .poly import Polyhedron, Rn, UnitCube
+    from .ellipsoid import Ellipsoid
+except SetError:
     traceback.print_exc()

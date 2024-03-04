@@ -1,7 +1,8 @@
 import traceback
 
 try:
-    from .mpc import MPCException, LQR, MPC
+    from .base import MPCError, LQR
+    from .mpc import MPC
     from .tube_based_mpc import TubeBasedMPC
-except MPCException:
+except MPCError:
     traceback.print_exc()

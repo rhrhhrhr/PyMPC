@@ -1,5 +1,4 @@
-from .mpc import np, cp, set, MPCException, MPCBase
-# from .mpc import npl
+from .base import *
 
 
 class TubeBasedMPC(MPCBase):
@@ -8,11 +7,8 @@ class TubeBasedMPC(MPCBase):
                  terminal_set_type='polyhedron', solver=cp.PIQP):
         super().__init__(a, b, q, r, pred_horizon, terminal_set_type, solver)
 
-        if terminal_set_type == 'ellipsoid':
-            raise MPCException('Terminal set type \'ellipsoid\' has not been adopted for tube based MPC!')
-
         if not (self.state_dim == noise_set.n_dim):
-            raise MPCException('The dimension of the noise set do not match the state dimension!')
+            raise MPCDimensionError('noise set and state in controller!')
 
         self.__noise_set = noise_set
         self.__disturbance_invariant_set = self.cal_disturbance_invariant_set()
@@ -20,14 +16,10 @@ class TubeBasedMPC(MPCBase):
         self.__tightened_state_set = state_set - self.__disturbance_invariant_set
         self.__tightened_input_set = input_set - self.k @ self.__disturbance_invariant_set
 
-        self.__terminal_set = self.cal_terminal_set(self.__tightened_state_set, self.__tightened_input_set)
+        self.__terminal_set = self.cal_terminal_set()
 
         # 控制器内初始状态在以外部实际状态为中心的不变集里
-        self.__initial_constraints = cp.NonPos(self.__disturbance_invariant_set(self.real_time_state - self.state_ini))
-        self.__problem = self.construct_problem(self.__initial_constraints,
-                                                self.__tightened_state_set,
-                                                self.__tightened_input_set,
-                                                self.__terminal_set)
+        self.__problem = self.construct_problem()
 
     def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         self.real_time_state = real_time_state
@@ -38,23 +30,17 @@ class TubeBasedMPC(MPCBase):
     @MPCBase.terminal_set_type.setter
     def terminal_set_type(self, value: bool) -> None:
         if value not in ['zero', 'polyhedron']:
-            raise MPCException('The terminal set type of tube based MPC can only be \'zero\' or \'polyhedron\'')
+            raise MPCTerminalSetTypeError()
 
         if self.terminal_set_type != value:
             MPCBase.terminal_set_type.fset(self, value)
-            self.__terminal_set = self.cal_terminal_set(self.__tightened_state_set, self.__tightened_input_set)
-            self.__problem = self.construct_problem(self.__initial_constraints,
-                                                    self.__tightened_state_set,
-                                                    self.__tightened_input_set,
-                                                    self.__terminal_set)
+            self.__terminal_set = self.cal_terminal_set()
+            self.__problem = self.construct_problem()
 
     @MPCBase.pred_horizon.setter
     def pred_horizon(self, value: int) -> None:
         MPCBase.pred_horizon.fset(self, value)
-        self.__problem = self.construct_problem(self.__initial_constraints,
-                                                self.__tightened_state_set,
-                                                self.__tightened_input_set,
-                                                self.__terminal_set)
+        self.__problem = self.construct_problem()
 
     @property
     def noise_set(self) -> set.Polyhedron:
@@ -65,11 +51,11 @@ class TubeBasedMPC(MPCBase):
         return self.__disturbance_invariant_set
 
     @property
-    def tightened_state_set(self) -> set.Polyhedron:
+    def state_set(self) -> set.Polyhedron:
         return self.__tightened_state_set
 
     @property
-    def tightened_input_set(self) -> set.Polyhedron:
+    def input_set(self) -> set.Polyhedron:
         return self.__tightened_input_set
 
     @property
@@ -78,7 +64,11 @@ class TubeBasedMPC(MPCBase):
 
     @property
     def feasible_set(self) -> set.Polyhedron:
-        return self.cal_feasible_set(self.__tightened_state_set, self.__tightened_input_set, self.__terminal_set)
+        return self.cal_feasible_set()
+
+    @property
+    def initial_constraint(self):
+        return self.__disturbance_invariant_set(self.real_time_state - self.state_ini) <= 0
 
     @MPCBase.problem.getter
     def problem(self) -> cp.Problem:
