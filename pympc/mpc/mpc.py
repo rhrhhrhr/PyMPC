@@ -11,17 +11,6 @@ class MPCException(Exception):
     pass
 
 
-class MPCError(Exception):
-    def __init__(self, code):
-        self.__code = code
-
-    def __str__(self):
-        if self.__code == 0:
-            return 'The dimensions of the state parameters do not match!'
-        elif self.__code == 1:
-            return 'The terminal set type can only be \'zero\', \'ellipsoid\' or \'polyhedron\''
-
-
 class LQR(object):
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray):
         if not (a.ndim == b.ndim == q.ndim == r.ndim == 2):
