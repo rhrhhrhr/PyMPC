@@ -1,3 +1,4 @@
+import numpy as np
 import numpy.linalg as npl
 from .base import *
 
@@ -15,16 +16,27 @@ class Ellipsoid(SetBase):
 
         self.__center = np.zeros(self.__n_dim) if center is None else center
 
-    def __call__(self, point: np.ndarray or cp.Expression) -> np.ndarray or cp.Expression:
-        if isinstance(point, cp.Expression):
-            res = cp.quad_form(point - self.__center, self.__p) - self.__alpha
+    def __str__(self) -> str:
+        return ('====================================================================================================\n'
+                '(x - center).T @ p @ (x - center) <= alpha\n'
+                '====================================================================================================\n'
+                f'p:\n'
+                f'{self.__p}\n'
+                '----------------------------------------------------------------------------------------------------\n'
+                f'alpha:\n'
+                f'{self.__alpha}\n'
+                '----------------------------------------------------------------------------------------------------\n'
+                f'center:\n'
+                f'{self.__center}\n'
+                '====================================================================================================')
+
+    def contains(self, point: np.ndarray or cp.Expression) -> bool or cp.Constraint:
+        if isinstance(point, np.ndarray):
+            res = np.all((point - self.__center) @ self.__p @ (point - self.__center) - self.__alpha <= 0)
         else:
-            res = (point - self.__center, self.__p) @ self.__p @ (point - self.__center, self.__p) - self.__alpha
+            res = cp.quad_form(point - self.__center, self.__p) - self.__alpha <= 0
 
         return res
-
-    def is_interior_point(self, point: np.ndarray) -> bool:
-        return np.all((point - self.__center) @ self.__p @ (point - self.__center) - self.__alpha <= 0)
 
     def plot(self, ax: plt.Axes, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:

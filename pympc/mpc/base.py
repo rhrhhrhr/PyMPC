@@ -194,7 +194,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def initial_constraint(self):
+    def initial_constraint(self) -> cp.Constraint:
         ...
 
     @property
@@ -225,7 +225,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
                 set_k = set_k @ a_k
                 terminal_set_next = terminal_set & set_k
 
-                if terminal_set.belongs_to(terminal_set_next):
+                if terminal_set.subset_eq(terminal_set_next):
                     break
 
                 terminal_set = terminal_set_next
@@ -247,11 +247,11 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
             # x^+ = A @ x + B @ u
             state_k_next = self.__state_series[(k + 1) * self.state_dim:(k + 2) * self.state_dim]
-            constraints.append(state_k_next - self.a @ state_k - self.b @ input_k == 0)
+            constraints.append(state_k_next == self.a @ state_k + self.b @ input_k)
 
             # x in X, u in U
-            constraints.append(self.state_set(state_k) <= 0)
-            constraints.append(self.input_set(input_k) <= 0)
+            constraints.append(self.state_set.contains(state_k))
+            constraints.append(self.input_set.contains(input_k))
 
             state_k = state_k_next
 
@@ -264,8 +264,8 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         #     input_k = self.__input_series[k * self.input_dim:(k + 1) * self.input_dim]
         #
         #     cost = cost + (state_k @ self.q @ state_k + input_k @ self.r @ input_k)
-        #     constraints.append(state_set(state_k) <= 0)
-        #     constraints.append(input_set(input_k) <= 0)
+        #     constraints.append(state_set.is_interior_point(state_k) <= 0)
+        #     constraints.append(input_set.is_interior_point(input_k) <= 0)
         #
         #     state_k = self.a @ state_k + self.b @ input_k
         #
@@ -275,7 +275,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         if self.__terminal_set_type == 'zero':
             constraints.append(state_k == 0)
         else:
-            constraints.append(self.terminal_set(state_k) <= 0)
+            constraints.append(self.terminal_set.contains(state_k))
 
         problem = cp.Problem(cp.Minimize(cost), constraints)
 

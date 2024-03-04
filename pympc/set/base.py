@@ -43,13 +43,9 @@ class SetBase(metaclass=abc.ABCMeta):
     def n_dim(self) -> int:
         ...
 
-    # 为优化求解器提供接口
+    # 判断是否为内点，同时也可以作为cvxpy求解器接口
     @abc.abstractmethod
-    def __call__(self, point: np.ndarray or cp.Expression) -> np.ndarray or cp.Expression:
-        ...
-
-    @abc.abstractmethod
-    def is_interior_point(self, point: np.ndarray) -> bool:
+    def contains(self, point: np.ndarray or cp.Expression) -> bool or cp.Constraint:
         ...
 
     # 画图（仅实现二维画图）
@@ -102,7 +98,7 @@ def support_fun(eta: np.ndarray, s: SetBase) -> int or float:
         raise SetDimensionError('\'eta\'', '\'polyhedron\'')
 
     var = cp.Variable(s.n_dim)
-    prob = cp.Problem(cp.Maximize(eta @ var), [s(var) <= 0])
+    prob = cp.Problem(cp.Maximize(eta @ var), [s.contains(var)])
     prob.solve(solver=cp.GLPK)
 
     return prob.value

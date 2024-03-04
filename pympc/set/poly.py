@@ -55,13 +55,14 @@ class Polyhedron(SetBase):
                 f'{self.__r_vec}\n'
                 '====================================================================================================')
 
-    # 为优化求解器的约束作接口
-    def __call__(self, point: np.ndarray or cp.Expression) -> np.ndarray or cp.Expression:
-        return self.__l_mat @ point - self.__r_vec
-
     # 判断该点是否为内点
-    def is_interior_point(self, point: np.ndarray) -> bool:
-        return np.all(self.__l_mat @ point - self.__r_vec <= 0)
+    def contains(self, point: np.ndarray or cp.Expression) -> bool or cp.Constraint:
+        if isinstance(point, np.ndarray):
+            res = np.all(self.__l_mat @ point - self.__r_vec <= 0)
+        else:
+            res = self.__l_mat @ point - self.__r_vec <= 0
+
+        return res
 
     # 多边形绘图会有误差，因为采用等高线来画的，增加采样点的个数可以提高画图精度
     def plot(self, ax: plt.Axes, x_lim: typing.List[int or float] = None, y_lim: typing.List[int or float] = None,
@@ -105,11 +106,11 @@ class Polyhedron(SetBase):
         return lim
 
     # 判断此多边形是否被包含于另一个多边形
-    def belongs_to(self, other: 'Polyhedron') -> bool:
+    def subset_eq(self, other: 'Polyhedron') -> bool:
         return all([support_fun(other.__l_mat[i, :], self) <= other.__r_vec[i] for i in range(other.__n_edges)])
 
     def equals_to(self, other: 'Polyhedron') -> bool:
-        return self.belongs_to(other) and other.belongs_to(self)
+        return self.subset_eq(other) and other.subset_eq(self)
 
     # 将不等式组右侧向量归一化，防止系数过大，影响支撑函数（线性规划）求解
     def normalization(self) -> None:
@@ -271,7 +272,7 @@ class Polyhedron(SetBase):
     def get_max_ellipsoid(self, p: np.ndarray, center: np.ndarray = None) -> Ellipsoid:
         ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
 
-        if not self.is_interior_point(ellipsoid_center):
+        if not self.contains(ellipsoid_center):
             raise SetError('Cannot find a maximum ellipsoid since the center is not in the polyhedron!')
 
         p_bar = npl.cholesky(p)

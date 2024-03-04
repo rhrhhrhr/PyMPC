@@ -67,8 +67,8 @@ class TubeBasedMPC(MPCBase):
         return self.cal_feasible_set()
 
     @property
-    def initial_constraint(self):
-        return self.__disturbance_invariant_set(self.real_time_state - self.state_ini) <= 0
+    def initial_constraint(self) -> cp.Constraint:
+        return self.__disturbance_invariant_set.contains(self.real_time_state - self.state_ini)
 
     @MPCBase.problem.getter
     def problem(self) -> cp.Problem:
@@ -87,7 +87,7 @@ class TubeBasedMPC(MPCBase):
         alpha_noise_set = alp * self.__noise_set
 
         while True:
-            if a_k_s_noise_set.belongs_to(alpha_noise_set):
+            if a_k_s_noise_set.subset_eq(alpha_noise_set):
                 break
 
             a_k_s = a_k @ a_k_s
@@ -116,7 +116,7 @@ class TubeBasedMPC(MPCBase):
         while True:
             a_k_n = a_k @ a_k_n
 
-            if a_k_n_noise_set.belongs_to(unit_cube):
+            if a_k_n_noise_set.subset_eq(unit_cube):
                 break
 
             # 计算 2 - - - - - - - - - - - - - - - - - - - #
