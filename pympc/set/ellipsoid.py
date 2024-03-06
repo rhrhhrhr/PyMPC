@@ -1,4 +1,3 @@
-import numpy as np
 import numpy.linalg as npl
 from .base import *
 
@@ -37,6 +36,9 @@ class Ellipsoid(SetBase):
             res = cp.quad_form(point - self.__center, self.__p) - self.__alpha <= 0
 
         return res
+
+    def subset_eq(self, other: 'Ellipsoid') -> bool:
+        raise SetNotImplementedError('subset_eq', 'ellipsoid')
 
     def plot(self, ax: plt.Axes, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
@@ -87,10 +89,27 @@ class Ellipsoid(SetBase):
             return self.__add__(-other)
 
     def __matmul__(self, other: np.ndarray) -> 'Ellipsoid':
-        raise SetNotImplementedError('coordinate transformation', 'ellipsoid')
+        if other.ndim != 2:
+            raise SetCalculationError('ellipsoid', 'multiplied', '2D array')
+        if other.shape[0] != self.__n_dim:
+            raise SetCalculationError('ellipsoid', 'multiplied', 'array with matching dimension')
+
+        return self.__class__(other.T @ self.__p @ other, self.__alpha, self.__center)
 
     def __array_ufunc__(self, ufunc, method, *inputs, **kwargs) -> 'Ellipsoid' or NotImplemented:
-        return NotImplemented
+        if ufunc == np.matmul:
+            lhs, rhs = inputs
+            try:
+                res = self.__matmul__(npl.inv(lhs))
+            except npl.LinAlgError:
+                res = NotImplemented
+        elif ufunc == np.add:
+            lhs, rhs = inputs
+            res = self.__add__(lhs)
+        else:
+            res = NotImplemented
+
+        return res
 
     # 多面体的放缩
     def __mul__(self, other: int or float) -> 'Ellipsoid':
@@ -101,3 +120,6 @@ class Ellipsoid(SetBase):
 
     def __and__(self, other: 'Ellipsoid') -> 'Ellipsoid':
         raise SetNotImplementedError('intersection', 'ellipsoid')
+
+    def __eq__(self, other: 'Ellipsoid') -> bool:
+        return (self.__center == other.__center) and np.all((self.__p / other.__p) == (self.__alpha / other.__alpha))

@@ -48,6 +48,11 @@ class SetBase(metaclass=abc.ABCMeta):
     def contains(self, point: np.ndarray or cp.Expression) -> bool or cp.Constraint:
         ...
 
+    # 判断一个集合是否被包含于另一个集合
+    @abc.abstractmethod
+    def subset_eq(self, other: 'SetBase'):
+        ...
+
     # 画图（仅实现二维画图）
     @abc.abstractmethod
     def plot(self, ax: plt.Axes, n_points=2000, color='b') -> None:
@@ -88,6 +93,10 @@ class SetBase(metaclass=abc.ABCMeta):
     # 多面体取交集
     @abc.abstractmethod
     def __and__(self, other: 'SetBase') -> 'SetBase':
+        ...
+
+    @abc.abstractmethod
+    def __eq__(self, other: 'SetBase') -> bool:
         ...
 
 

@@ -38,12 +38,14 @@ class Polyhedron(SetBase):
     def r_vec(self) -> np.ndarray:
         return self.__r_vec
 
+    # 浅拷贝
     def __copy__(self, other: 'Polyhedron') -> None:
         self.__n_edges = other.__n_edges
         self.__n_dim = other.__n_dim
         self.__l_mat = other.__l_mat
         self.__r_vec = other.__r_vec
 
+    # 打印该多面体的信息
     def __str__(self) -> str:
         return ('====================================================================================================\n'
                 'left matrix @ x <= right vector\n'
@@ -55,7 +57,6 @@ class Polyhedron(SetBase):
                 f'{self.__r_vec}\n'
                 '====================================================================================================')
 
-    # 判断该点是否为内点
     def contains(self, point: np.ndarray or cp.Expression) -> bool or cp.Constraint:
         if isinstance(point, np.ndarray):
             res = np.all(self.__l_mat @ point - self.__r_vec <= 0)
@@ -88,6 +89,7 @@ class Polyhedron(SetBase):
 
         ax.contour(x_grid, y_grid, z, levels=0, colors=color)
 
+    # 绘制一个多面体时需要知道大概范围
     @staticmethod
     def get_grid_lim(val_min: int or float, val_max: int or float, default_bound: int or float) \
             -> typing.List[int or float]:
@@ -105,12 +107,8 @@ class Polyhedron(SetBase):
 
         return lim
 
-    # 判断此多边形是否被包含于另一个多边形
     def subset_eq(self, other: 'Polyhedron') -> bool:
         return all([support_fun(other.__l_mat[i, :], self) <= other.__r_vec[i] for i in range(other.__n_edges)])
-
-    def equals_to(self, other: 'Polyhedron') -> bool:
-        return self.subset_eq(other) and other.subset_eq(self)
 
     # 将不等式组右侧向量归一化，防止系数过大，影响支撑函数（线性规划）求解
     def normalization(self) -> None:
@@ -127,6 +125,7 @@ class Polyhedron(SetBase):
 
     # 去除冗余项
     def remove_redundant_term(self) -> None:
+        # 一条边不可能冗余
         if self.__n_edges >= 2:
             i = 0
             while i < self.__n_edges:
@@ -139,7 +138,18 @@ class Polyhedron(SetBase):
                     i = i + 1
 
     # 傅里叶-莫茨金消元法，这里从最后一个元素开始倒着消除，因此使用该方法前应该把需要保留的元素放在最前面
+    # 相当于给一个变量左乘矩阵
+    # [1 0 0 ... 0 0 ... 0]
+    # [0 1 0 ... 0 0 ... 0]
+    # [. . . ... . . ... .]
+    # [0 0 0 ... 1 0 ... 0]
+    #              | --- |
+    #                 |
+    #                 V
+    #              减少的维度
     def fourier_motzkin_elimination(self, n_dim: int) -> None:
+        if n_dim < 0:
+            raise SetTypeError('eliminated dimension', 'polyhedron', 'positive integer')
         for _ in range(n_dim):
             pos_a = np.empty((0, self.__n_dim - 1))
             pos_b = np.empty(0)
@@ -172,6 +182,14 @@ class Polyhedron(SetBase):
             self.__init__(new_a, new_b)
             self.remove_redundant_term()
 
+    # 相当于给一个变量左乘矩阵
+    # [1 0 0 ... 0]
+    # [0 1 0 ... 0]
+    # [. . . ... .]
+    # [0 0 0 ... 1]
+    # [0 0 0 ... 0] ---
+    # [. . . ... .]   | ---> 增加的维度
+    # [0 0 0 ... 0] ---
     def extend_dimensions(self, n_dim: int) -> None:
         if n_dim < 0:
             raise SetTypeError('extended dimension', 'polyhedron', 'positive integer')
@@ -268,6 +286,9 @@ class Polyhedron(SetBase):
         res.remove_redundant_term()
 
         return res
+
+    def __eq__(self, other: 'Polyhedron') -> bool:
+        return self.subset_eq(other) and other.subset_eq(self)
 
     def get_max_ellipsoid(self, p: np.ndarray, center: np.ndarray = None) -> Ellipsoid:
         ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
