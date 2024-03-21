@@ -99,11 +99,8 @@ class TubeBasedMPC(MPCBase):
 
             sum_a_k_s_noise_set = sum_a_k_s_noise_set + a_k_s_noise_set
 
-        alpha_array = np.zeros(self.__noise_set.n_edges)
-        for i in range(self.__noise_set.n_edges):
-            alpha_array[i] = set.support_fun(self.__noise_set.l_mat[i, :], a_k_s_noise_set) / a_k_s_noise_set.r_vec[i]
-
-        alp = np.max(alpha_array)
+        alp = max([set.support_fun(self.__noise_set.l_mat[i, :], a_k_s_noise_set) / a_k_s_noise_set.r_vec[i]
+                   for i in range(self.__noise_set.n_edges)])
 
         f_alpha_s_set = sum_a_k_s_noise_set / (1 - alp)
 
