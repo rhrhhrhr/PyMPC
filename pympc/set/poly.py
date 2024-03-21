@@ -174,8 +174,8 @@ class Polyhedron(SetBase):
                     neg_a = np.vstack((neg_a, -a_i_others / a_i_last))
                     neg_b = np.hstack((neg_b, -b_i / a_i_last))
 
-            for i in range(len(pos_a)):
-                for j in range(len(neg_a)):
+            for i in range(pos_a.shape[0]):
+                for j in range(neg_a.shape[0]):
                     new_a = np.vstack((new_a, pos_a[i, :] + neg_a[j, :]))
                     new_b = np.hstack((new_b, pos_b[i] + neg_b[j]))
 
