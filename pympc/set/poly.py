@@ -127,15 +127,12 @@ class Polyhedron(SetBase):
     def remove_redundant_term(self) -> None:
         # 一条边不可能冗余
         if self.__n_edges >= 2:
-            i = 0
-            while i < self.__n_edges:
+            for i in range(self.__n_edges - 1, 0, -1):
                 without_row_i = self.remove_edge(i)
                 s_i = self.__r_vec[i] - support_fun(self.__l_mat[i, :], without_row_i)
 
                 if s_i >= 0:
                     self.__copy__(without_row_i)
-                else:
-                    i = i + 1
 
     # 傅里叶-莫茨金消元法，这里从最后一个元素开始倒着消除，因此使用该方法前应该把需要保留的元素放在最前面
     # 相当于给一个变量左乘矩阵

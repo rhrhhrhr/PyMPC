@@ -38,6 +38,7 @@ class SetPlotError(SetError):
 
 
 class SetBase(metaclass=abc.ABCMeta):
+    # 集合的维度
     @property
     @abc.abstractmethod
     def n_dim(self) -> int:
@@ -63,7 +64,7 @@ class SetBase(metaclass=abc.ABCMeta):
     def __add__(self, other: 'SetBase' or np.ndarray) -> 'SetBase':
         ...
 
-    # 特别的，这里指庞特里亚金差，即闵可夫斯基和的逆运算
+    # 庞特里亚金差，即闵可夫斯基和的逆运算
     # 即若 p2 = p1 + p3，则 p3 = p2 - p1，只有当输入为一个点（数组）时该运算等价于 (-p1) + p2
     @abc.abstractmethod
     def __sub__(self, other: 'SetBase' or np.ndarray) -> 'SetBase':
@@ -90,11 +91,12 @@ class SetBase(metaclass=abc.ABCMeta):
     def __truediv__(self, other: int or float) -> 'SetBase':
         return self.__mul__(1 / other)
 
-    # 多面体取交集
+    # 集合取交集
     @abc.abstractmethod
     def __and__(self, other: 'SetBase') -> 'SetBase':
         ...
 
+    # 判断两个集合是否相等
     @abc.abstractmethod
     def __eq__(self, other: 'SetBase') -> bool:
         ...
