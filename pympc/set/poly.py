@@ -3,7 +3,7 @@ from .base import *
 from .ellipsoid import npl, Ellipsoid
 
 
-class InscribedEllipseException(Exception):
+class InscribedEllipsoidException(Exception):
     def __init__(self):
         super().__init__('Cannot find a maximum inscribed ellipsoid since the center is not in the polyhedron!')
 
@@ -296,7 +296,7 @@ class Polyhedron(SetBase):
         ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
 
         if not self.contains(ellipsoid_center):
-            raise InscribedEllipseException
+            raise InscribedEllipsoidException
 
         p_bar = npl.cholesky(p)
         r_vec_bar = self.__r_vec + self.__l_mat @ ellipsoid_center
