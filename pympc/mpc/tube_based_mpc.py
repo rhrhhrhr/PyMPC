@@ -8,7 +8,7 @@ class TubeBasedMPC(MPCBase):
         super().__init__(a, b, q, r, pred_horizon, terminal_set_type, solver)
 
         if not (self.state_dim == noise_set.n_dim):
-            raise MPCDimensionError('noise set and state in controller!')
+            raise MPCDimensionException('noise set and state in controller!')
 
         self.__noise_set = noise_set
         self.__disturbance_invariant_set = self.cal_disturbance_invariant_set()
@@ -30,7 +30,7 @@ class TubeBasedMPC(MPCBase):
     @MPCBase.terminal_set_type.setter
     def terminal_set_type(self, value: bool) -> None:
         if value not in ['zero', 'polyhedron']:
-            raise MPCTerminalSetTypeError()
+            raise MPCTerminalSetTypeException()
 
         if self.terminal_set_type != value:
             MPCBase.terminal_set_type.fset(self, value)

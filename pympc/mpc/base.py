@@ -8,41 +8,37 @@ import typing
 from .. import set
 
 
-class MPCError(Exception):
-    pass
-
-
-class MPCTypeError(MPCError):
+class MPCTypeException(Exception):
     def __init__(self, name: str, tp: str):
         message = 'The type of ' + name + ' must be ' + tp + '!'
         super().__init__(message)
 
 
-class MPCDimensionError(MPCError):
+class MPCDimensionException(Exception):
     def __init__(self, *obj: str):
-        message = 'The dimensions of ' + ', '.join(obj) + 'do not match!'
+        message = 'The dimensions of ' + ', '.join(obj) + ' do not match!'
         super().__init__(message)
 
 
-class MPCTerminalSetTypeError(MPCError):
+class MPCTerminalSetTypeException(Exception):
     def __init__(self):
         super().__init__('The terminal set type must be \'zero\', \'ellipsoid\' or \'polyhedron\'')
 
 
-class MPCNotImplementedError(MPCError):
+class MPCNotImplementedException(Exception):
     def __init__(self, function: str):
         message = 'The function ' + function + ' has not been implemented yet!'
         super().__init__(message)
 
 
-class LQR(object):
+class LQR:
     def __init__(self, a: np.ndarray, b: np.ndarray, q: np.ndarray, r: np.ndarray):
         if not (a.ndim == b.ndim == q.ndim == r.ndim == 2):
-            raise MPCTypeError('A, B, Q, R', '2D array')
+            raise MPCTypeException('A, B, Q, R', '2D array')
         if not (a.shape[0] == a.shape[1] == b.shape[0] == q.shape[0] == q.shape[1]):
-            raise MPCDimensionError('A, B, Q')
+            raise MPCDimensionException('A, B, Q')
         if not (b.shape[1] == r.shape[0] == r.shape[1]):
-            raise MPCDimensionError('B, R')
+            raise MPCDimensionException('B, R')
 
         self.__state_dim = a.shape[1]
         self.__input_dim = b.shape[1]
@@ -94,9 +90,9 @@ class LQR(object):
 
     def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         if real_time_state.ndim != 1:
-            raise MPCTypeError('real time state', '1D array')
+            raise MPCTypeException('real time state', '1D array')
         if real_time_state.shape[0] != self.__state_dim:
-            raise MPCDimensionError('real time state and state in controller')
+            raise MPCDimensionException('real time state and state in controller')
 
         return -self.__k @ real_time_state
 
@@ -107,9 +103,9 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         super().__init__(a, b, q, r)
 
         if pred_horizon <= 0:
-            raise MPCTypeError('prediction horizon', 'positive integer')
+            raise MPCTypeException('prediction horizon', 'positive integer')
         if terminal_set_type not in ['zero', 'ellipsoid', 'polyhedron']:
-            raise MPCTerminalSetTypeError()
+            raise MPCTerminalSetTypeException()
 
         self.__pred_horizon = pred_horizon
 
@@ -128,7 +124,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
     @pred_horizon.setter
     def pred_horizon(self, value: int) -> None:
         if value <= 0:
-            raise MPCTypeError('prediction horizon', 'positive integer')
+            raise MPCTypeException('prediction horizon', 'positive integer')
 
         self.__pred_horizon = value
 
@@ -170,9 +166,9 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
     @real_time_state.setter
     def real_time_state(self, value: np.ndarray) -> None:
         if value.ndim != 1:
-            raise MPCTypeError('real time state', '1D array')
+            raise MPCTypeException('real time state', '1D array')
         if value.size != self.state_dim:
-            raise MPCDimensionError('real time state and state in controller')
+            raise MPCDimensionException('real time state and state in controller')
 
         self.__real_time_state.value = value
 
@@ -290,7 +286,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         # a_bar, b_bar分别代表上面两个矩阵
 
         if self.__terminal_set_type == 'ellipsoid':
-            raise MPCNotImplementedError('calculation for the feasible set when the terminal set is a ellipsoid')
+            raise MPCNotImplementedException('calculation for the feasible set when the terminal set is a ellipsoid')
         # 生成矩阵 M
         m = np.zeros((self.state_dim * (self.__pred_horizon + 1), self.state_dim))
         a_i = np.eye(self.state_dim)

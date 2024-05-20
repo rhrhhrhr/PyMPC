@@ -3,6 +3,11 @@ from .base import *
 from .ellipsoid import npl, Ellipsoid
 
 
+class InscribedEllipseException(Exception):
+    def __init__(self):
+        super().__init__('Cannot find a maximum inscribed ellipsoid since the center is not in the polyhedron!')
+
+
 class Polyhedron(SetBase):
     # 用线性不等式组 A @ x <= b 来表示一个多边形
     # n_edges: 边的个数
@@ -12,11 +17,11 @@ class Polyhedron(SetBase):
 
     def __init__(self, l_mat: np.ndarray, r_vec: np.ndarray):
         if l_mat.ndim != 2:
-            raise SetTypeError('left matrix', 'polyhedron', '2D array')
+            raise SetTypeException('left matrix', 'polyhedron', '2D array')
         if r_vec.ndim != 1:
-            raise SetTypeError('right vector', 'polyhedron', '1D array')
+            raise SetTypeException('right vector', 'polyhedron', '1D array')
         if l_mat.shape[0] != r_vec.shape[0]:
-            raise SetDimensionError('left matrix', 'right vector')
+            raise SetDimensionException('left matrix', 'right vector')
 
         self.__n_edges, self.__n_dim = l_mat.shape
         self.__l_mat = l_mat
@@ -69,7 +74,7 @@ class Polyhedron(SetBase):
     def plot(self, ax: plt.Axes, x_lim: typing.List[int or float] = None, y_lim: typing.List[int or float] = None,
              default_bound=100, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
-            raise SetPlotError()
+            raise SetPlotException()
         if x_lim is None:
             x_min = -support_fun(np.array([-1, 0]), self)
             x_max = support_fun(np.array([1, 0]), self)
@@ -146,7 +151,7 @@ class Polyhedron(SetBase):
     #              减少的维度
     def fourier_motzkin_elimination(self, n_dim: int) -> None:
         if n_dim < 0:
-            raise SetTypeError('eliminated dimension', 'polyhedron', 'positive integer')
+            raise SetTypeException('eliminated dimension', 'polyhedron', 'positive integer')
         for _ in range(n_dim):
             pos_a = np.empty((0, self.__n_dim - 1))
             pos_b = np.empty(0)
@@ -189,7 +194,7 @@ class Polyhedron(SetBase):
     # [0 0 0 ... 0] ---
     def extend_dimensions(self, n_dim: int) -> None:
         if n_dim < 0:
-            raise SetTypeError('extended dimension', 'polyhedron', 'positive integer')
+            raise SetTypeException('extended dimension', 'polyhedron', 'positive integer')
         elif n_dim > 0:
             zero_1 = np.zeros((self.__n_edges, n_dim))
             zero_2 = np.zeros((n_dim, self.__n_dim))
@@ -214,9 +219,9 @@ class Polyhedron(SetBase):
 
         else:
             if other.ndim != 1:
-                raise SetCalculationError('polyhedron', 'added', '1D array')
+                raise SetCalculationException('polyhedron', 'added', '1D array')
             if other.size != self.__n_dim:
-                raise SetCalculationError('polyhedron', 'added', 'array with matching dimension')
+                raise SetCalculationException('polyhedron', 'added', 'array with matching dimension')
 
             res = self.__class__(self.__l_mat, self.__r_vec + self.__l_mat @ other)
 
@@ -245,9 +250,9 @@ class Polyhedron(SetBase):
     # 多面体坐标变换，Poly_new = Poly @ mat 意味着 Poly 是将 Poly_new 中的所有点通过 mat 映射后的区域，这一定义是为了方便计算不变集
     def __matmul__(self, other: np.ndarray) -> 'Polyhedron':
         if other.ndim != 2:
-            raise SetCalculationError('polyhedron', 'multiplied', '2D array')
+            raise SetCalculationException('polyhedron', 'multiplied', '2D array')
         if other.shape[0] != self.__n_dim:
-            raise SetCalculationError('polyhedron', 'multiplied', 'array with matching dimension')
+            raise SetCalculationException('polyhedron', 'multiplied', 'array with matching dimension')
 
         return self.__class__(self.__l_mat @ other, self.__r_vec)
 
@@ -274,7 +279,7 @@ class Polyhedron(SetBase):
 
     def __mul__(self, other: int or float) -> 'Polyhedron':
         if other < 0:
-            raise SetCalculationError('polyhedron', 'multiplied', 'positive number')
+            raise SetCalculationException('polyhedron', 'multiplied', 'positive number')
 
         return self.__class__(self.__l_mat / other, self.__r_vec)
 
@@ -291,7 +296,7 @@ class Polyhedron(SetBase):
         ellipsoid_center = np.zeros(self.__n_dim) if center is None else center
 
         if not self.contains(ellipsoid_center):
-            raise SetError('Cannot find a maximum ellipsoid since the center is not in the polyhedron!')
+            raise InscribedEllipseException
 
         p_bar = npl.cholesky(p)
         r_vec_bar = self.__r_vec + self.__l_mat @ ellipsoid_center
@@ -304,7 +309,7 @@ class Polyhedron(SetBase):
 class Rn(Polyhedron):
     def __init__(self, dim: int):
         if dim <= 0:
-            raise SetTypeError('dimension', 'Rn', 'positive integer')
+            raise SetTypeException('dimension', 'Rn', 'positive integer')
 
         super().__init__(np.zeros((1, dim)), np.zeros(1))
 
@@ -315,9 +320,9 @@ class Rn(Polyhedron):
 class UnitCube(Polyhedron):
     def __init__(self, dim: int, side_length: int or float):
         if dim <= 0:
-            raise SetTypeError('dimension', 'unit cube', 'positive integer')
+            raise SetTypeException('dimension', 'unit cube', 'positive integer')
         if side_length < 0:
-            raise SetTypeError('side length', 'unit cube', 'non-negative real number')
+            raise SetTypeException('side length', 'unit cube', 'non-negative real number')
 
         self.__side_length = side_length
         eye = np.eye(dim)

@@ -7,9 +7,9 @@ class MPC(MPCBase):
         super().__init__(a, b, q, r, pred_horizon, terminal_set_type, solver)
 
         if not (self.state_dim == state_set.n_dim):
-            raise MPCDimensionError('state set and state in controller')
+            raise MPCDimensionException('state set', 'state in controller')
         if not (self.input_dim == input_set.n_dim):
-            raise MPCDimensionError('input set and input in controller')
+            raise MPCDimensionException('input set', 'input in controller')
 
         self.__state_set = state_set
         self.__input_set = input_set
@@ -21,7 +21,7 @@ class MPC(MPCBase):
     @MPCBase.terminal_set_type.setter
     def terminal_set_type(self, value: str) -> None:
         if value not in ['zero', 'ellipsoid', 'polyhedron']:
-            raise MPCTerminalSetTypeError()
+            raise MPCTerminalSetTypeException
 
         if self.terminal_set_type != value:
             MPCBase.terminal_set_type.fset(self, value)

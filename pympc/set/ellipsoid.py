@@ -7,7 +7,7 @@ class Ellipsoid(SetBase):
         try:
             _ = npl.cholesky(p)
         except npl.LinAlgError:
-            raise SetTypeError('\'P\' matrix', 'ellipsoid', 'positive definite matrix')
+            raise SetTypeException('\'P\' matrix', 'ellipsoid', 'positive definite matrix')
 
         self.__p = p
         self.__n_dim = p.shape[0]
@@ -38,11 +38,11 @@ class Ellipsoid(SetBase):
         return res
 
     def subset_eq(self, other: 'Ellipsoid') -> bool:
-        raise SetNotImplementedError('subset_eq', 'ellipsoid')
+        raise SetNotImplementedException('subset_eq', 'ellipsoid')
 
     def plot(self, ax: plt.Axes, n_points=2000, color='b') -> None:
         if self.__n_dim != 2:
-            raise SetPlotError()
+            raise SetPlotException()
 
         axis_max = np.sqrt(self.__alpha / npl.eigvals(self.__p))
         x_max, y_max = axis_max * 1.5
@@ -78,21 +78,21 @@ class Ellipsoid(SetBase):
 
     def __add__(self, other: 'Ellipsoid' or np.ndarray) -> 'Ellipsoid':
         if isinstance(other, Ellipsoid):
-            raise SetNotImplementedError('pontryagin difference', 'ellipsoid')
+            raise SetNotImplementedException('pontryagin difference', 'ellipsoid')
         else:
             return self.__class__(self.__p, self.__alpha, self.__center + other)
 
     def __sub__(self, other: 'Ellipsoid' or np.ndarray) -> 'Ellipsoid':
         if isinstance(other, Ellipsoid):
-            raise SetNotImplementedError('pontryagin difference', 'ellipsoid')
+            raise SetNotImplementedException('pontryagin difference', 'ellipsoid')
         else:
             return self.__add__(-other)
 
     def __matmul__(self, other: np.ndarray) -> 'Ellipsoid':
         if other.ndim != 2:
-            raise SetCalculationError('ellipsoid', 'multiplied', '2D array')
+            raise SetCalculationException('ellipsoid', 'multiplied', '2D array')
         if other.shape[0] != self.__n_dim:
-            raise SetCalculationError('ellipsoid', 'multiplied', 'array with matching dimension')
+            raise SetCalculationException('ellipsoid', 'multiplied', 'array with matching dimension')
 
         return self.__class__(other.T @ self.__p @ other, self.__alpha, self.__center)
 
@@ -114,12 +114,12 @@ class Ellipsoid(SetBase):
     # 多面体的放缩
     def __mul__(self, other: int or float) -> 'Ellipsoid':
         if other < 0:
-            raise SetCalculationError('ellipsoid', 'multiplied', 'positive number')
+            raise SetCalculationException('ellipsoid', 'multiplied', 'positive number')
 
         return self.__class__(self.__p, self.__alpha * other, self.__center)
 
     def __and__(self, other: 'Ellipsoid') -> 'Ellipsoid':
-        raise SetNotImplementedError('intersection', 'ellipsoid')
+        raise SetNotImplementedException('intersection', 'ellipsoid')
 
     def __eq__(self, other: 'Ellipsoid') -> bool:
         return (self.__center == other.__center) and np.all((self.__p / other.__p) == (self.__alpha / other.__alpha))

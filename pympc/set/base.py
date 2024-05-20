@@ -4,35 +4,31 @@ import matplotlib.pyplot as plt
 import abc
 
 
-class SetError(Exception):
-    pass
-
-
-class SetTypeError(SetError):
+class SetTypeException(Exception):
     def __init__(self, name: str, set_type: str, tp: str):
         message = 'The type of the ' + name + ' of ' + set_type + ' must be ' + tp + '!'
         super().__init__(message)
 
 
-class SetDimensionError(SetError):
+class SetDimensionException(Exception):
     def __init__(self, *args: str):
         message = 'The dimensions of ' + ', '.join(args) + 'do not match!'
         super().__init__(message)
 
 
-class SetCalculationError(SetError):
+class SetCalculationException(Exception):
     def __init__(self, set_type: str, operation: str, other: str):
         message = 'A ' + set_type + ' can only be ' + operation + ' by a ' + other + '!'
         super().__init__(message)
 
 
-class SetNotImplementedError(SetError):
+class SetNotImplementedException(Exception):
     def __init__(self, function: str, set_type: str):
         message = 'The function ' + function + ' of ' + set_type + ' has not been implemented yet!'
         super().__init__(message)
 
 
-class SetPlotError(SetError):
+class SetPlotException(Exception):
     def __init__(self):
         super().__init__('Only 2D set can be plotted!')
 
@@ -104,9 +100,9 @@ class SetBase(metaclass=abc.ABCMeta):
 
 def support_fun(eta: np.ndarray, s: SetBase) -> int or float:
     if eta.ndim != 1:
-        raise SetTypeError('input \'eta\'', 'support function', '1D array')
+        raise SetTypeException('input \'eta\'', 'support function', '1D array')
     if eta.size != s.n_dim:
-        raise SetDimensionError('\'eta\'', '\'polyhedron\'')
+        raise SetDimensionException('\'eta\'', '\'polyhedron\'')
 
     var = cp.Variable(s.n_dim)
     prob = cp.Problem(cp.Maximize(eta @ var), [s.contains(var)])
