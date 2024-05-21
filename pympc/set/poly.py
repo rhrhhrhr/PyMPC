@@ -1,4 +1,7 @@
 import typing
+
+import numpy as np
+
 from .base import *
 from .ellipsoid import npl, Ellipsoid
 
@@ -306,32 +309,16 @@ class Polyhedron(SetBase):
         return Ellipsoid(p, min_center_to_edge_distance ** 2, center)
 
 
-class Rn(Polyhedron):
-    def __init__(self, dim: int):
-        if dim <= 0:
-            raise SetTypeException('dimension', 'Rn', 'positive integer')
-
-        super().__init__(np.zeros((1, dim)), np.zeros(1))
-
-    def __str__(self):
-        return f'Vector space: dimension -> {self.n_dim}.'
+def rn(dim: int):
+    return Polyhedron(np.zeros((1, dim)), np.zeros(1))
 
 
-class UnitCube(Polyhedron):
-    def __init__(self, dim: int, side_length: int or float):
-        if dim <= 0:
-            raise SetTypeException('dimension', 'unit cube', 'positive integer')
-        if side_length < 0:
-            raise SetTypeException('side length', 'unit cube', 'non-negative real number')
+def unit_cube(dim: int, side_length: int or float):
+    if dim <= 0:
+        raise SetTypeException('dimension', 'unit cube', 'positive integer')
+    if side_length < 0:
+        raise SetTypeException('side length', 'unit cube', 'non-negative real number')
 
-        self.__side_length = side_length
-        eye = np.eye(dim)
+    eye = np.eye(dim)
 
-        super().__init__(np.vstack((eye, -eye)), (side_length / 2) * np.ones(2 * dim))
-
-    @property
-    def side_length(self) -> int or float:
-        return self.__side_length
-
-    def __str__(self) -> str:
-        return f'Unit cube: dimension -> {self.n_dim}, side length -> {self.__side_length}.'
+    return Polyhedron(np.vstack((eye, -eye)), (side_length / 2) * np.ones(2 * dim))

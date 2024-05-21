@@ -108,7 +108,7 @@ class TubeBasedMPC(MPCBase):
         a_k_n_noise_set = a_k_s_noise_set
         sum_a_k_n_noise_set = sum_a_k_s_noise_set
         # 这里用一个单位球的内接超正方体代替单位球
-        unit_cube = set.UnitCube(self.state_dim, 2 * epsilon / np.sqrt(self.state_dim))
+        unit_cube = set.unit_cube(self.state_dim, 2 * epsilon / np.sqrt(self.state_dim))
 
         while True:
             a_k_n = a_k @ a_k_n

@@ -208,7 +208,7 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         # 2. 下一时刻的状态 x+ = A_k @ x 仍属于 Xf -- 这一条件描述的集合 set 被包含于 set @ A_k
         # 若设置终端约束集合为原点，则生成一个边长为0的单位立方体，否则计算最大的满足上述条件的集合
         if self.__terminal_set_type == 'zero':
-            terminal_set = set.UnitCube(self.state_dim, 0)
+            terminal_set = set.unit_cube(self.state_dim, 0)
         elif self.__terminal_set_type == 'ellipsoid':
             state_set_in_terminal = self.state_set & (self.input_set @ self.k)
             terminal_set = state_set_in_terminal.get_max_ellipsoid(self.p / 2)

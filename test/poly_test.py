@@ -61,7 +61,7 @@ if __name__ == '__main__':
     ax5.axis('equal')
     ax5.set_title('$R^2$')
 
-    R2 = ms.Rn(2)
+    R2 = ms.rn(2)
 
     R2.plot(ax5)
 
@@ -70,7 +70,7 @@ if __name__ == '__main__':
     ax6.axis('equal')
     ax6.set_title('Unit cube')
 
-    unit_cube = ms.Polyhedron(np.vstack((np.eye(2), -np.eye(2))), np.ones(2 * 2))
+    unit_cube = ms.unit_cube(2, 1)
 
     unit_cube.plot(ax6)
 
