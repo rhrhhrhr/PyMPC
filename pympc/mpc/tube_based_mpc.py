@@ -11,15 +11,9 @@ class TubeBasedMPC(MPCBase):
             raise MPCDimensionException('noise set and state in controller!')
 
         self.__noise_set = noise_set
-        self.__disturbance_invariant_set = self.cal_disturbance_invariant_set()
 
-        self.__tightened_state_set = state_set - self.__disturbance_invariant_set
-        self.__tightened_input_set = input_set - self.k @ self.__disturbance_invariant_set
-
-        self.__terminal_set = self.cal_terminal_set()
-
-        # 控制器内初始状态在以外部实际状态为中心的不变集里
-        self.__problem = self.construct_problem()
+        self.__tightened_state_set = state_set - self.disturbance_invariant_set
+        self.__tightened_input_set = input_set - self.k @ self.disturbance_invariant_set
 
     def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         self.real_time_state = real_time_state
@@ -27,28 +21,9 @@ class TubeBasedMPC(MPCBase):
 
         return self.input_ini.value - self.k @ (real_time_state - self.state_ini.value)
 
-    @MPCBase.terminal_set_type.setter
-    def terminal_set_type(self, value: bool) -> None:
-        if value not in ['zero', 'polyhedron']:
-            raise MPCTerminalSetTypeException()
-
-        if self.terminal_set_type != value:
-            MPCBase.terminal_set_type.fset(self, value)
-            self.__terminal_set = self.cal_terminal_set()
-            self.__problem = self.construct_problem()
-
-    @MPCBase.pred_horizon.setter
-    def pred_horizon(self, value: int) -> None:
-        MPCBase.pred_horizon.fset(self, value)
-        self.__problem = self.construct_problem()
-
     @property
     def noise_set(self) -> set.Polyhedron:
         return self.__noise_set
-
-    @property
-    def disturbance_invariant_set(self) -> set.Polyhedron:
-        return self.__disturbance_invariant_set
 
     @property
     def state_set(self) -> set.Polyhedron:
@@ -59,22 +34,12 @@ class TubeBasedMPC(MPCBase):
         return self.__tightened_input_set
 
     @property
-    def terminal_set(self) -> set.Polyhedron:
-        return self.__terminal_set
-
-    @property
-    def feasible_set(self) -> set.Polyhedron:
-        return self.cal_feasible_set()
-
-    @property
     def initial_constraint(self) -> cp.Constraint:
-        return self.__disturbance_invariant_set.contains(self.real_time_state - self.state_ini)
+        return self.disturbance_invariant_set.contains(self.real_time_state - self.state_ini)
 
-    @MPCBase.problem.getter
-    def problem(self) -> cp.Problem:
-        return self.__problem
-
-    def cal_disturbance_invariant_set(self, alpha=0.2, epsilon=0.001) -> set.Polyhedron:
+    @property
+    @cache
+    def disturbance_invariant_set(self, alpha=0.2, epsilon=0.001) -> set.Polyhedron:
         alp = alpha
 
         # 由于多次给集合左乘 A_k，且 A_k 可逆，可以提前求好 A_k 的逆并在下面的 计算 1、计算 2 中右乘 A_k 的逆，这里为了方便理解，没有这么做

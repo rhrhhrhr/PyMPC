@@ -5,6 +5,7 @@ import numpy as np
 import numpy.linalg as npl
 import scipy.linalg as spl
 import typing
+from functools import cache
 from .. import set
 
 
@@ -139,11 +140,6 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         ...
 
     @property
-    @abc.abstractmethod
-    def terminal_set(self) -> set.Polyhedron or set.Ellipsoid:
-        ...
-
-    @property
     def state_prediction_series(self) -> np.ndarray:
         return self.__state_series.value.reshape(self.__pred_horizon + 1, self.state_dim).T
 
@@ -178,6 +174,9 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
     @terminal_set_type.setter
     def terminal_set_type(self, value: str) -> None:
+        if value not in ['zero', 'ellipsoid', 'polyhedron']:
+            raise MPCTerminalSetTypeException
+
         self.__terminal_set_type = value
 
     @property
@@ -193,16 +192,13 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
     def initial_constraint(self) -> cp.Constraint:
         ...
 
-    @property
-    @abc.abstractmethod
-    def problem(self):
-        ...
-
     @abc.abstractmethod
     def __call__(self, real_time_state: np.ndarray) -> np.ndarray:
         ...
 
-    def cal_terminal_set(self) -> set.Polyhedron:
+    @property
+    @cache
+    def terminal_set(self) -> set.Polyhedron or set.Ellipsoid:
         # 在终端约束 Xf 内的一点 x 满足：
         # 1. 当采用控制律 u = Kx 时，状态约束和输入约束均满足 -- 这一条件描述的集合为 X 与 U @ K 的交集，集合与矩阵的乘法解释请参考文件poly
         # 2. 下一时刻的状态 x+ = A_k @ x 仍属于 Xf -- 这一条件描述的集合 set 被包含于 set @ A_k
@@ -228,7 +224,9 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
         return terminal_set
 
-    def construct_problem(self) -> cp.Problem:
+    @property
+    @cache
+    def problem(self) -> cp.Problem:
         cost = 0
         state_k = self.__state_series[0:self.state_dim]
 
@@ -277,7 +275,9 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
         return problem
 
-    def cal_feasible_set(self) -> set.Polyhedron:
+    @property
+    @cache
+    def feasible_set(self) -> set.Polyhedron:
         # 这里先求出了M，C矩阵，于是知道了Xk = M*x + C*Uk，之后将约束条件转化为G*Xk <= h，再包含A_Uk*Uk <= b_Uk
         # 于是有
         # [G*M G*C ][x ]      [h   ]
