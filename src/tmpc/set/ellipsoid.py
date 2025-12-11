@@ -1,24 +1,30 @@
+from __future__ import annotations
+
 import numpy as np
 import numpy.linalg as npl
 import cvxpy as cp
-import matplotlib.pyplot as plt
-from typing import Union
-from .base import SetBase
-from .exception import *
+from typing import overload
+from numpy.typing import NDArray
+from matplotlib.axes import Axes
 
 
-class Ellipsoid(SetBase):
-    def __init__(self, p: np.ndarray, alpha: Union[int, float], center: np.ndarray = None):
+class Ellipsoid:
+    def __init__(
+        self,
+        p: NDArray[np.float64],
+        alpha: float,
+        center: NDArray[np.float64] | None = None,
+    ):
         try:
             _ = npl.cholesky(p)
         except npl.LinAlgError:
-            raise SetTypeException("'P' matrix", "ellipsoid", "positive definite matrix")
+            raise TypeError("Matrix p must be symmetric positive definite!")
 
-        self.__p = p
-        self.__n_dim = p.shape[0]
-        self.__alpha = alpha
+        self._p = p
+        self._n_dim = p.shape[0]
+        self._alpha = alpha
 
-        self.__center = np.zeros(self.__n_dim) if center is None else center
+        self._center = np.zeros(self._n_dim) if center is None else center
 
     def __str__(self) -> str:
         return (
@@ -26,109 +32,117 @@ class Ellipsoid(SetBase):
             "(x - center).T @ p @ (x - center) <= alpha\n"
             "====================================================================================================\n"
             f"p:\n"
-            f"{self.__p}\n"
+            f"{self._p}\n"
             "----------------------------------------------------------------------------------------------------\n"
             f"alpha:\n"
-            f"{self.__alpha}\n"
+            f"{self._alpha}\n"
             "----------------------------------------------------------------------------------------------------\n"
             f"center:\n"
-            f"{self.__center}\n"
+            f"{self._center}\n"
             "===================================================================================================="
         )
 
-    def contains(self, point: Union[np.ndarray, cp.Expression]) -> Union[bool, cp.Constraint]:
+    @overload
+    def contains(self, point: NDArray[np.float64]) -> bool: ...
+
+    @overload
+    def contains(self, point: cp.Expression) -> cp.Constraint: ...
+
+    def contains(
+        self, point: NDArray[np.float64] | cp.Expression
+    ) -> bool | cp.Constraint:
         if isinstance(point, np.ndarray):
-            res = np.all((point - self.__center) @ self.__p @ (point - self.__center) - self.__alpha <= 0)
+            res = np.all(
+                (point - self._center) @ self._p @ (point - self._center) - self._alpha
+                <= 0
+            )
         else:
-            res = cp.quad_form(point - self.__center, self.__p) - self.__alpha <= 0
+            res = cp.quad_form(point - self._center, self._p) - self._alpha <= 0
 
-        return res
+        return res  # type: ignore
 
-    def subset_eq(self, other: "Ellipsoid") -> bool:
-        raise SetNotImplementedException("subset_eq", "ellipsoid")
+    def plot(self, ax: Axes, n_points=2000, color="b") -> None:
+        if self._n_dim != 2:
+            raise NotImplementedError("Plotting is only implemented for 2D ellipsoids.")
 
-    def plot(self, ax: plt.Axes, n_points=2000, color="b") -> None:
-        if self.__n_dim != 2:
-            raise SetPlotException()
-
-        axis_max = np.sqrt(self.__alpha / npl.eigvals(self.__p))
+        axis_max = np.sqrt(self._alpha / npl.eigvals(self._p))
         x_max, y_max = axis_max * 1.5
         x_min, y_min = -axis_max * 1.5
 
         x = np.linspace(x_min, x_max, n_points)
         y = np.linspace(y_min, y_max, n_points)
         x_grid, y_grid = np.meshgrid(x, y)
-        x_grid = x_grid - self.__center[0]
-        y_grid = y_grid - self.__center[1]
+        x_grid = x_grid - self._center[0]
+        y_grid = y_grid - self._center[1]
 
         z = (
-            x_grid**2 * self.__p[0, 0]
-            + x_grid * y_grid * (self.__p[0, 1] + self.__p[1, 0])
-            + y_grid**2 * self.__p[1, 1]
+            x_grid**2 * self._p[0, 0]
+            + x_grid * y_grid * (self._p[0, 1] + self._p[1, 0])
+            + y_grid**2 * self._p[1, 1]
         )
 
-        ax.contour(x_grid, y_grid, z, levels=[self.__alpha], colors=color)
+        ax.contour(x_grid, y_grid, z, levels=[self._alpha], colors=color)
 
     @property
     def p(self) -> np.ndarray:
-        return self.__p
+        return self._p
 
     @property
     def n_dim(self) -> int:
-        return self.__n_dim
+        return self._n_dim
 
     @property
-    def alpha(self) -> Union[int, float]:
-        return self.__alpha
+    def alpha(self) -> float:
+        return self._alpha
 
     @property
-    def center(self) -> np.ndarray:
-        return self.__center
+    def center(self) -> NDArray[np.float64]:
+        return self._center
 
-    def __add__(self, other: Union["Ellipsoid", np.ndarray]) -> "Ellipsoid":
+    def __add__(self, other: Ellipsoid | NDArray[np.float64]) -> Ellipsoid:
         if isinstance(other, Ellipsoid):
-            raise SetNotImplementedException("pontryagin difference", "ellipsoid")
+            raise NotImplementedError(
+                "Minkowski sum of two ellipsoids is not implemented."
+            )
         else:
-            return self.__class__(self.__p, self.__alpha, self.__center + other)
+            return self.__class__(self._p, self._alpha, self._center + other)
 
-    def __sub__(self, other: Union["Ellipsoid", np.ndarray]) -> "Ellipsoid":
+    def __sub__(self, other: Ellipsoid | NDArray[np.float64]) -> Ellipsoid:
         if isinstance(other, Ellipsoid):
-            raise SetNotImplementedException("pontryagin difference", "ellipsoid")
+            raise NotImplementedError(
+                "Pontryagin difference of two ellipsoids is not implemented."
+            )
         else:
             return self.__add__(-other)
 
-    def __matmul__(self, other: np.ndarray) -> "Ellipsoid":
-        if other.ndim != 2:
-            raise SetCalculationException("ellipsoid", "multiplied", "2D array")
-        if other.shape[0] != self.__n_dim:
-            raise SetCalculationException("ellipsoid", "multiplied", "array with matching dimension")
+    def map_inv(self, mat: NDArray[np.float64]) -> Ellipsoid:
+        return self.__class__(mat.T @ self._p @ mat, self._alpha, self._center)
 
-        return self.__class__(other.T @ self.__p @ other, self.__alpha, self.__center)
-
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs) -> "Ellipsoid":
-        if ufunc == np.matmul:
-            lhs, rhs = inputs
-            try:
-                res = self.__matmul__(npl.inv(lhs))
-            except npl.LinAlgError:
-                res = NotImplemented
-        elif ufunc == np.add:
-            lhs, rhs = inputs
-            res = self.__add__(lhs)
-        else:
+    def map(self, mat: NDArray[np.float64]) -> Ellipsoid:
+        try:
+            inv_mat = npl.inv(mat).astype(np.float64)
+            res = self.map_inv(inv_mat)
+        except npl.LinAlgError:
             res = NotImplemented
 
         return res
 
     # 多面体的放缩
-    def __mul__(self, other: Union[int, float]) -> "Ellipsoid":
-        if other < 0:
-            raise SetCalculationException("ellipsoid", "multiplied", "positive number")
+    def __mul__(self, other: float) -> Ellipsoid:
+        return self.__class__(self._p, self._alpha * other, self._center)
 
-        return self.__class__(self.__p, self.__alpha * other, self.__center)
+    def __and__(self, other: Ellipsoid) -> Ellipsoid:
+        raise NotImplementedError("Intersection of two ellipsoids is not implemented.")
 
-    def __and__(self, other: "Ellipsoid") -> "Ellipsoid":
-        raise SetNotImplementedException("intersection", "ellipsoid")
+    def __eq__(self, other: Ellipsoid) -> bool:
+        if not isinstance(other, Ellipsoid):
+            return False
 
-    def __eq__(self, other: "Ellipsoid") -> bool:
-        return (self.__center == other.__center) and np.all((self.__p / other.__p) == (self.__alpha / other.__alpha))
+        centers_equal = np.array_equal(self._center, other._center)
+        # check proportionality: self._p / other._p == self._alpha / other._alpha
+        # rewrite as self._p * other._alpha == other._p * self._alpha and use allclose for numerics
+        matrices_proportional = np.allclose(
+            self._p * other._alpha, other._p * self._alpha
+        )
+
+        return bool(centers_equal and matrices_proportional)

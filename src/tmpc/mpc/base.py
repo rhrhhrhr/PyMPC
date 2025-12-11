@@ -4,118 +4,68 @@ import cvxpy as cp
 import numpy as np
 import numpy.linalg as npl
 import scipy.linalg as spl
-from typing import Union, Tuple
-from functools import cache
-from numpy import number
+from functools import cached_property
 from numpy.typing import NDArray
-from .exception import *
 from ..set import Polyhedron, Ellipsoid, unit_cube
 
 
+def solve_discrete_lqr(
+    a: NDArray[np.float64],
+    b: NDArray[np.float64],
+    q: NDArray[np.float64],
+    r: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    p = spl.solve_discrete_are(a, b, q, r)
+    k = npl.inv(r + b.T @ p @ b) @ b.T @ p @ a
+
+    return p, k
+
+
 class LQR:
-    def __init__(self, a: NDArray[number], b: NDArray[number], q: NDArray[number], r: NDArray[number]):
-        if not (a.ndim == b.ndim == q.ndim == r.ndim == 2):
-            raise MPCTypeException("A, B, Q, R", "2D array")
-        if not (a.shape[0] == a.shape[1] == b.shape[0] == q.shape[0] == q.shape[1]):
-            raise MPCDimensionException("A, B, Q")
-        if not (b.shape[1] == r.shape[0] == r.shape[1]):
-            raise MPCDimensionException("B, R")
-
-        self.__state_dim = a.shape[1]
-        self.__input_dim = b.shape[1]
-
-        self.__a = a
-        self.__b = b
-        self.__q = q
-        self.__r = r
-
-        self.__p, self.__k = self.cal_lqr()
-
-    @property
-    def state_dim(self) -> int:
-        return self.__state_dim
-
-    @property
-    def input_dim(self) -> int:
-        return self.__input_dim
-
-    @property
-    def a(self) -> NDArray[number]:
-        return self.__a
-
-    @property
-    def b(self) -> NDArray[number]:
-        return self.__b
-
-    @property
-    def q(self) -> NDArray[number]:
-        return self.__q
-
-    @property
-    def r(self) -> NDArray[number]:
-        return self.__r
-
-    @property
-    def p(self) -> NDArray[number]:
-        return self.__p
-
-    @property
-    def k(self) -> NDArray[number]:
-        return self.__k
-
-    def cal_lqr(self) -> Tuple[NDArray[number], NDArray[number]]:
-        p = spl.solve_discrete_are(self.__a, self.__b, self.__q, self.__r)
-        k = npl.inv(self.__r + self.__b.T @ p @ self.__b) @ self.__b.T @ p @ self.__a
-
-        return p, k
-
-    def __call__(self, real_time_state: NDArray[number]) -> NDArray[number]:
-        if real_time_state.ndim != 1:
-            raise MPCTypeException("real time state", "1D array")
-        if real_time_state.shape[0] != self.__state_dim:
-            raise MPCDimensionException("real time state and state in controller")
-
-        return -self.__k @ real_time_state
-
-
-class MPCBase(LQR, metaclass=abc.ABCMeta):
     def __init__(
         self,
-        a: NDArray[number],
-        b: NDArray[number],
-        q: NDArray[number],
-        r: NDArray[number],
-        pred_horizon: int,
-        terminal_set_type: str,
-        solver: str,
+        a: NDArray[np.float64],
+        b: NDArray[np.float64],
+        q: NDArray[np.float64],
+        r: NDArray[np.float64],
     ):
-        super().__init__(a, b, q, r)
+        _, self._k = solve_discrete_lqr(a, b, q, r)
 
-        if pred_horizon <= 0:
-            raise MPCTypeException("prediction horizon", "positive integer")
-        if terminal_set_type not in ["zero", "ellipsoid", "polyhedron"]:
-            raise MPCTerminalSetTypeException()
+    def __call__(self, real_time_state: NDArray[np.float64]) -> NDArray[np.float64]:
+        return -self._k @ real_time_state
 
-        self.__pred_horizon = pred_horizon
 
-        self.__real_time_state = cp.Parameter(self.state_dim)
-        self.__state_series = cp.Variable(self.state_dim * (pred_horizon + 1))
-        self.__input_series = cp.Variable(self.input_dim * pred_horizon)
+class MPCBase(metaclass=abc.ABCMeta):
+    def __init__(
+        self,
+        a: NDArray[np.float64],
+        b: NDArray[np.float64],
+        q: NDArray[np.float64],
+        r: NDArray[np.float64],
+        pred_horizon: int,
+        terminal_set_type: str = "polyhedron",
+        solver: str = "OSQP",
+    ):
+        self._a = a
+        self._b = b
+        self._q = q
+        self._r = r
 
-        self.__terminal_set_type = terminal_set_type
+        self._p, self._k = solve_discrete_lqr(a, b, q, r)
 
-        self.__solver = solver
+        self._state_dim = a.shape[1]
+        self._input_dim = b.shape[1]
 
-    @property
-    def pred_horizon(self) -> int:
-        return self.__pred_horizon
+        self._pred_horizon = pred_horizon
 
-    @pred_horizon.setter
-    def pred_horizon(self, value: int) -> None:
-        if value <= 0:
-            raise MPCTypeException("prediction horizon", "positive integer")
+        self._real_time_state = cp.Parameter(self._state_dim)
+        self._state_series = cp.Variable(self._state_dim * (pred_horizon + 1))
+        self._input_series = cp.Variable(self._input_dim * pred_horizon)
 
-        self.__pred_horizon = value
+        self._terminal_set_type = terminal_set_type
+        self._terminal_set = self._compute_terminal_set(terminal_set_type)
+
+        self._solver = solver
 
     @property
     @abc.abstractmethod
@@ -126,79 +76,57 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
     def input_set(self) -> Polyhedron: ...
 
     @property
-    def state_prediction_series(self) -> NDArray[number]:
-        return self.__state_series.value.reshape(self.__pred_horizon + 1, self.state_dim).T
+    def state_series(self) -> NDArray[np.float64]:
+        state_series = self._state_series.value
+        if state_series is None:
+            raise ValueError("The optimization problem has not been solved yet.")
+
+        return state_series.reshape(self._pred_horizon + 1, self._state_dim).T
 
     @property
-    def input_prediction_series(self) -> NDArray[number]:
-        return self.__input_series.value.reshape(self.__pred_horizon, self.input_dim).T
+    def input_series(self) -> NDArray[np.float64]:
+        input_series = self._input_series.value
+        if input_series is None:
+            raise ValueError("The optimization problem has not been solved yet.")
 
-    @property
-    def input_ini(self) -> cp.Variable:
-        return self.__input_series[0 : self.input_dim]
-
-    @property
-    def state_ini(self) -> cp.Variable:
-        return self.__state_series[0 : self.state_dim]
+        return input_series.reshape(self._pred_horizon, self._input_dim).T
 
     @property
     def real_time_state(self) -> cp.Parameter:
-        return self.__real_time_state
-
-    @real_time_state.setter
-    def real_time_state(self, value: NDArray[number]) -> None:
-        if value.ndim != 1:
-            raise MPCTypeException("real time state", "1D array")
-        if value.size != self.state_dim:
-            raise MPCDimensionException("real time state and state in controller")
-
-        self.__real_time_state.value = value
-
-    @property
-    def terminal_set_type(self) -> str:
-        return self.__terminal_set_type
-
-    @terminal_set_type.setter
-    def terminal_set_type(self, value: str) -> None:
-        if value not in ["zero", "ellipsoid", "polyhedron"]:
-            raise MPCTerminalSetTypeException
-
-        self.__terminal_set_type = value
+        return self._real_time_state
 
     @property
     def solver(self) -> str:
-        return self.__solver
+        return self._solver
 
     @solver.setter
     def solver(self, value) -> None:
-        self.__solver = value
+        self._solver = value
 
     @property
     @abc.abstractmethod
     def initial_constraint(self) -> cp.Constraint: ...
 
     @abc.abstractmethod
-    def __call__(self, real_time_state: NDArray[number]) -> NDArray[number]: ...
+    def __call__(self, real_time_state: NDArray[np.float64]) -> NDArray[np.float64]: ...
 
-    @property
-    @cache
-    def terminal_set(self) -> Union[Polyhedron, Ellipsoid]:
+    def _compute_terminal_set(self, key: str) -> Polyhedron | Ellipsoid:
         # 在终端约束 Xf 内的一点 x 满足：
         # 1. 当采用控制律 u = Kx 时，状态约束和输入约束均满足 -- 这一条件描述的集合为 X 与 U @ K 的交集，集合与矩阵的乘法解释请参考文件poly
         # 2. 下一时刻的状态 x+ = A_k @ x 仍属于 Xf -- 这一条件描述的集合 set 被包含于 set @ A_k
         # 若设置终端约束集合为原点，则生成一个边长为0的单位立方体，否则计算最大的满足上述条件的集合
-        if self.__terminal_set_type == "zero":
-            terminal_set = unit_cube(self.state_dim, 0)
-        elif self.__terminal_set_type == "ellipsoid":
-            state_set_in_terminal = self.state_set & (self.input_set @ self.k)
-            terminal_set = state_set_in_terminal.get_max_ellipsoid(self.p / 2)
-        else:
-            set_k = self.state_set & (self.input_set @ self.k)
+        if key == "zero":
+            return unit_cube(self._state_dim, 0)
+        elif key == "ellipsoid":
+            state_set_in_terminal = self.state_set & (self.input_set.map_inv(self._k))
+            return state_set_in_terminal.get_max_ellipsoid(self._p / 2)
+        elif key == "polyhedron":
+            set_k = self.state_set & (self.input_set.map_inv(self._k))
             terminal_set = copy.deepcopy(set_k)
-            a_k = self.a - self.b @ self.k
+            a_k = self._a - self._b @ self._k
 
             while True:
-                set_k = set_k @ a_k
+                set_k = set_k.map_inv(a_k)
                 terminal_set_next = terminal_set & set_k
 
                 if terminal_set.subset_eq(terminal_set_next):
@@ -206,26 +134,33 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
 
                 terminal_set = terminal_set_next
 
-        return terminal_set
+            return terminal_set
+        else:
+            raise ValueError(f"Unsupported terminal set type: {key}.")
 
-    @property
-    @cache
+    @cached_property
     def problem(self) -> cp.Problem:
         cost = 0
-        state_k = self.__state_series[0 : self.state_dim]
+        state_k = self._state_series[0 : self._state_dim]
 
         # 对于初始状态的约束
         constraints = [self.initial_constraint]
 
-        for k in range(self.__pred_horizon):
-            input_k = self.__input_series[k * self.input_dim : (k + 1) * self.input_dim]
+        for k in range(self._pred_horizon):
+            input_k = self._input_series[
+                k * self._input_dim : (k + 1) * self._input_dim
+            ]
 
             # l(x, u) = x.T @ Q @ x + u.T @ R @ u
-            cost = cost + (state_k @ self.q @ state_k + input_k @ self.r @ input_k) / 2
+            cost = (
+                cost + (state_k @ self._q @ state_k + input_k @ self._r @ input_k) / 2
+            )
 
             # x^+ = A @ x + B @ u
-            state_k_next = self.__state_series[(k + 1) * self.state_dim : (k + 2) * self.state_dim]
-            constraints.append(state_k_next == self.a @ state_k + self.b @ input_k)
+            state_k_next = self._state_series[
+                (k + 1) * self._state_dim : (k + 2) * self._state_dim
+            ]
+            constraints.append(state_k_next == self._a @ state_k + self._b @ input_k)
 
             # x in X, u in U
             constraints.append(self.state_set.contains(state_k))
@@ -249,18 +184,17 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         #
         # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =  = = = = = = = = = = = = = = = = = = = =
 
-        cost = cost + (state_k @ self.p @ state_k) / 2
-        if self.__terminal_set_type == "zero":
+        cost = cost + (state_k @ self._p @ state_k) / 2
+        if self._terminal_set_type == "zero":
             constraints.append(state_k == 0)
         else:
-            constraints.append(self.terminal_set.contains(state_k))
+            constraints.append(self._terminal_set.contains(state_k))
 
         problem = cp.Problem(cp.Minimize(cost), constraints)
 
         return problem
 
-    @property
-    @cache
+    @cached_property
     def feasible_set(self) -> Polyhedron:
         # 这里先求出了M，C矩阵，于是知道了Xk = M*x + C*Uk，之后将约束条件转化为G*Xk <= h，再包含A_Uk*Uk <= b_Uk
         # 于是有
@@ -269,37 +203,50 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         # [ 0  A_Uk][Uk]      [b_Uk]
         # a_bar, b_bar分别代表上面两个矩阵
 
-        if self.__terminal_set_type == "ellipsoid":
-            raise MPCNotImplementedException("calculation for the feasible set when the terminal set is a ellipsoid")
-        # 生成矩阵 M
-        m = np.zeros((self.state_dim * (self.__pred_horizon + 1), self.state_dim))
-        a_i = np.eye(self.state_dim)
-
-        for i in range(self.pred_horizon + 1):
-            m[i * self.state_dim : (i + 1) * self.state_dim, :] = a_i
-            a_i = a_i @ self.a
-
-        # 生成矩阵 C
-        c = spl.block_diag(*[self.b for _ in range(self.__pred_horizon)])
-
-        for i in range(self.__pred_horizon - 1):
-            c[(i + 1) * self.state_dim : (i + 2) * self.state_dim, :] += (
-                self.a @ c[i * self.state_dim : (i + 1) * self.state_dim, :]
+        if isinstance(self._terminal_set, Ellipsoid):
+            raise NotImplementedError(
+                "Feasible set computation is not implemented for ellipsoidal terminal sets."
             )
 
-        zero = np.zeros((self.state_dim, self.input_dim * self.__pred_horizon))
+        # 生成矩阵 M
+        m = np.zeros((self._state_dim * (self._pred_horizon + 1), self._state_dim))
+        a_i = np.eye(self._state_dim)
+
+        for i in range(self._pred_horizon + 1):
+            m[i * self._state_dim : (i + 1) * self._state_dim, :] = a_i
+            a_i = a_i @ self._a
+
+        # 生成矩阵 C
+        c = spl.block_diag(*[self._b for _ in range(self._pred_horizon)])
+
+        for i in range(self._pred_horizon - 1):
+            c[(i + 1) * self._state_dim : (i + 2) * self._state_dim, :] += (
+                self._a @ c[i * self._state_dim : (i + 1) * self._state_dim, :]
+            )
+
+        zero = np.zeros((self._state_dim, self._input_dim * self._pred_horizon))
         c = np.vstack((zero, c))
 
         # 生成 G 和 h
-        g = spl.block_diag(*[self.state_set.l_mat for _ in range(self.__pred_horizon)], self.terminal_set.l_mat)
-        h = np.hstack((np.tile(self.state_set.r_vec, self.pred_horizon), self.terminal_set.r_vec))
+        g = spl.block_diag(
+            *[self.state_set.l_mat for _ in range(self._pred_horizon)],
+            self._terminal_set.l_mat,
+        )
+        h = np.hstack(
+            (
+                np.tile(self.state_set.r_vec, self._pred_horizon),
+                self._terminal_set.r_vec,
+            )
+        )
 
         # 生成 A_Uk 和 b_Uk
-        a_uk = spl.block_diag(*[self.input_set.l_mat for _ in range(self.__pred_horizon)])
-        b_uk = np.tile(self.input_set.r_vec, self.__pred_horizon)
+        a_uk = spl.block_diag(
+            *[self.input_set.l_mat for _ in range(self._pred_horizon)]
+        )
+        b_uk = np.tile(self.input_set.r_vec, self._pred_horizon)
 
         # 生成对应的零矩阵部分
-        zero = np.zeros((a_uk.shape[0], self.state_dim))
+        zero = np.zeros((a_uk.shape[0], self._state_dim))
 
         l_mat = np.block([[g @ m, g @ c], [zero, a_uk]])
         r_vec = np.hstack((h, b_uk))
@@ -307,6 +254,6 @@ class MPCBase(LQR, metaclass=abc.ABCMeta):
         feasible_set = Polyhedron(l_mat, r_vec)
 
         # 傅里叶-莫茨金消元法，将控制输入变量U消去
-        feasible_set.fourier_motzkin_elimination(self.input_dim * self.__pred_horizon)
+        feasible_set.reduce_dimension(self._input_dim * self._pred_horizon)
 
         return feasible_set
